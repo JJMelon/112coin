@@ -3,7 +3,7 @@
 import sqlite3, json
 import time, random, linecache
 
-from blockchain import BlockChain
+from blockchain import *
 '''
 -------------------SQL DATABASE REFERENCES---------------
 chain.db - stores table of blocks 
@@ -63,7 +63,7 @@ def sqlTransaction(query, msg='', fetch=False):
         #initialize our cursor object, which allows us to interact with our created database
         c = database.cursor()
         c.execute(query)
-        result = c.fetchone()
+        result = c.fetchall()
         database.commit()
     except sqlite3.Error as error:
         print("Sqlite error returned: ", error)
@@ -74,22 +74,40 @@ def sqlTransaction(query, msg='', fetch=False):
         if fetch:
             return result 
 
-def getBlockJSON(height):
+#######################################################
+#                  BLOCK FUNCTIONS
+#######################################################
+
+# returns a list of block objects for all blocks in a db
+def fetchChain():
+    query = "SELECT * From blocks"
+    chain = sqlTransaction(query, fetch=True)
+    blocks = []
+    for blockValues in chain:
+        d = json.loads(blockValues[1])
+        block = Block.blockFromJSON(d)
+        blocks.append(block)
+    return blocks
+
+
+# returns dictionary representation of the block at specified height
+def blockDeserializer(height):
     # we fetch our id from the height+1 because of starting at 1 in the db
     query = "SELECT * FROM blocks WHERE id = %s" %(height+1)
-    rawString = sqlTransaction(query, fetch=True)[1]
+    rawString = sqlTransaction(query, fetch=True)[0][1]
     d = json.loads(rawString)
     return d
 
 def insertBlock(block):
     msg = "Inserted Block into chain.db!"
     query = "INSERT INTO blocks (block) VALUES ('%s')" %block.rawString
-    print(query)
     sqlTransaction(query, msg)
 
-# def insertTx(tx, c):
-#     sender, receiver, amt, time = tx
-#     c.execute("INSERT INTO txs (sender, receiver, amt, time) VALUES (?, ?, ?, ?)", (sender, receiver, amt, time))
+#######################################################
+#               TRANSACTION FUNCTIONS
+#######################################################
+
+# def txsDeserializer()
 
 def getSent(user):
     c.execute("SELECT * FROM txs WHERE sender=?", (user,))
@@ -115,7 +133,7 @@ def delTable(table, dbname):
     finally:
         if database:
             database.close()
-            print("The %s was Dropped!"%table)
+            print("The %s table was Dropped!"%table)
 
 #returns list of txs from starting index to end index inclusive
 def getTxsRange(start, end, c):

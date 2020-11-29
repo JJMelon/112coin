@@ -21,26 +21,73 @@ def hash2(a, b):
     concat = ahash+bhash
     return sha256(concat.encode()).hexdigest()
 
+# returns the blockchain object containing all the data about blocks in the chain database
+def loadChain():
+    B = BlockChain()
+    blockList = fetchChain()
+    # replace first default genesis block with correct block
+    B.blocks[0] = blockList[0]
+    for block in blockList[1:]:
+        B.addBlock(block)
+    return B
+
 class Tx(object):
-    def __init__(self, sender, receiver, amt, time, signature):
+    def __init__(self, sender, receiver, amt, date, signature):
         self.sender = sender
         self.receiver = receiver
         self.amt = amt
-        self.time = time
+        self.date = date
         self.signature = signature
         self.hash = sha256(str(self).encode()).hexdigest()
     
     def __repr__(self):
-        return f"{self.sender} to {self.receiver}: {self.amt} -- {self.time}"
+        return f"{self.sender} to {self.receiver}: {self.amt} -- {self.date}"
+    
+    @classmethod
+    def txFromJSON(cls, d):
+        body = d['body']
+        sender = body['Sender']
+        date = body['Time Stamp']
+        receiver = body['Receiver']
+        signature = body['Signature']
+        amount = body['Amount']
+        return Tx(sender, receiver, amount, date, signature)
+
+    # takes in list of JSON rawString txs and returns list of Tx objects
+    @classmethod
+    def txListDeserializer(cls, L):
+        txs = []
+        for rawTx in L:
+            d = json.loads(rawTx)
+            tx = Tx.txFromJSON(d)
+            txs.append(tx)
+        return txs
+
+        # turns Tx object into json string
+    def txSerialize(self):
+        d = {}
+        d['body'] = {'Sender': self.sender, 
+                    'Time Stamp': self.date, 'Receiver': self.receiver, 
+                    'Signature': self.signature, 'Amount': self.amt}
+        d['id'] = self.hash
+        return json.dumps(d)
+
+    # takes in list of Tx objects and returns list of serialized JSON rawStrings
+    @classmethod
+    def serializedTxsList(cls, L):
+        txsJSON = []
+        for tx in L:
+            txJSON = tx.txSerialize()
+            txsJSON.append(txJSON)
+        return txsJSON
 
 class Block(object):
     #takes in txs as list of transactions in this block
-    def __init__(self, height, txs, prevHash, minter, currTime=formatTime(), fromValues=False, values=None): 
+    def __init__(self, txs, prevHash, minter, currTime=formatTime(), fromValues=False, values=None): 
 
         #always pass in when building
-        self.height = height
         self.txs = txs
-        self.rawTxs = [str(txs[i]) for i in range(len(txs))]
+        self.rawTxsList = Tx.serializedTxsList(self.txs)
         self.prevHash = prevHash
         self.minter = minter
 
@@ -56,16 +103,15 @@ class Block(object):
 
     def blockSerialize(self, incHash=False):
         d = {}
-        d['header'] = {'Height': self.height, 
-                    'Time Stamp': self.time, 'Previous Hash': self.prevHash, 
+        d['header'] = {'Time Stamp': self.time, 'Previous Hash': self.prevHash, 
                     'Minter': self.minter, 'merkleRoot': self.merkleRoot}
         if incHash:
             d['header'].update({'Hash': self.hash})
-        d['transactions'] = self.rawTxs
+        d['transactions'] = self.rawTxsList
         return json.dumps(d)
     
     def __repr__(self):
-        return (f'[Block: {self.height}, Hash: {self.hash} -- {self.time}]')
+        return (f'[Block Hash: {self.hash} -- {self.time}]')
 
     @staticmethod
     # returns the hash of the root of the merkle tree of transactions
@@ -94,15 +140,15 @@ class Block(object):
     @classmethod
     def blockFromJSON(cls, d):
         header = d['header']
-        height = header['Height']
         time = header['Time Stamp']
         prevHash = header['Previous Hash']
         minter = header['Minter']
         merkleRoot = header['merkleRoot']
         Hash = header['Hash']
-        txs = d['transactions']
+        rawTxsList = d['transactions']
+        txs = Tx.txListDeserializer(rawTxsList)
         inputValues = (merkleRoot, Hash, time)
-        return Block(height, txs, prevHash, minter, fromValues=True, values=inputValues)
+        return Block(txs, prevHash, minter, fromValues=True, values=inputValues)
 
     #hash all the data of this block to send to the next block
     def getHash(self):
@@ -180,7 +226,7 @@ class BlockChain(object):
         # get the balance they have accumilated in this block, based on all previous txs
         blockBalance = 0
         for prevTx in block.txs:
-            if (prevTx.time < tx.time):
+            if (prevTx.date < tx.date):
                 if (prevTx.sender == tx.sender):
                     blockBalance -= prevTx.amt
                 if (prevTx.receiver == tx.sender):
@@ -204,7 +250,7 @@ class BlockChain(object):
     def createGenesis():
         minter = 'Alby'
         txs = testTxs2()
-        return Block(0, txs, time.time(), None, minter)
+        return Block(txs, time.time(), None, minter)
 
     # stake an amount of coins at the time of the function call
     def addStake(self, validator, amt):
@@ -222,7 +268,6 @@ class BlockChain(object):
 def updateDB(block):
     pass
 
-
 def testTxs1():
     tx1 = Tx("joe", "mary", 10, time.time(), "h")
     tx2 = Tx("bob", "mary", 10, time.time(), "h")
@@ -235,6 +280,28 @@ def testTxs2():
     tx3 = Tx("mary", "bob", 30, time.time(), "h")
     return [tx1, tx2, tx3]
 
+def testMyTxs1():
+    tx1 = Tx("Alby", "mary", 10, time.time(), "h")
+    tx2 = Tx("billy", "Alby", 10, time.time(), "h")
+    tx3 = Tx("coinbase", "bob", 30, time.time(), "h")
+    return [tx1, tx2, tx3]
+
+def testMyTxs2():
+    txs = []
+    lines = 237 #number of lines in our username file
+    for i in range(100):
+        #make sure receiver is not same as sender
+        while True:
+            user = linecache.getline('usernames.txt', random.randint(1,lines))
+            if user != 'Alby': break
+        amt = random.randint(0,20)
+        if random.randint(0,1) == 1:
+            tx = Tx(user, "Alby", amt, time.time(), "eyy")
+        else:
+            tx = Tx('Alby', user, amt, time.time(), "eyy")
+        txs.append(tx)
+    return txs
+
 def testValidators():
     L = [(f'billy{i}',random.randint(1,50), i) for i in range(30)] + [('alby', 1000, 1)]
     d = {}
@@ -242,9 +309,13 @@ def testValidators():
         d[name] = (stake, time)
     return d
 
+def testBlocks():
+    b = Block(testTxs1(), 0, 'Alby')
+    b2 = Block(testTxs2(), b.hash, 'Alby')
+    b3 = Block(testMyTxs2(), b2.hash, 'Alby')
+    b4 = Block(testMyTxs1(), b3.hash, 'Alby')
+    return [b,b2,b3,b4]
 
-b = Block(0, testTxs1(), 0, 'Alby')
-b2 = Block(1, testTxs1(), b.hash, 'Alby')
-B = BlockChain()
-B.validators = testValidators()
+# B = BlockChain()
+# B.validators = testValidators()
 # insertBlock(b)

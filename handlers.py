@@ -14,15 +14,20 @@ def mintKeyHandler(app, event):
 
 def recentKeyHandler(app, event):
     if event.key == 'Down':
-        moveRecentIndex(app, 1)
+        moveIndex(app, 1)
     elif event.key == 'Up':
-        moveRecentIndex(app, -1)
+        moveIndex(app, -1)
     elif event.key == "s":
-        moveRecentIndex(app, -app.index)
+        moveIndex(app, -app.index)
 
-def moveRecentIndex(app, Dir):
-    txsCount = len(app.myTxs)
-    maxViewable = min(app.txWidth, txsCount)
+def moveIndex(app, Dir):
+    if app.page == 4:
+        txsCount = len(app.myTxs)
+        maxViewable = min(app.txWidth, txsCount)
+    elif app.page == 5:
+        currBlockTxs = app.currBlocks[app.blockIndex].txs
+        txsCount = len(currBlockTxs)
+        maxViewable = min(app.txWidth, txsCount)
     app.index += Dir
     if app.txWidth > maxViewable:
         app.index += Dir
@@ -30,10 +35,43 @@ def moveRecentIndex(app, Dir):
         app.index = 0
     elif app.index > txsCount - app.txWidth:
         app.index = txsCount - app.txWidth
-    app.currTxs = app.myTxs[app.index: app.index + app.txWidth]
+    if app.page == 4:
+        app.currTxs = app.myTxs[app.index: app.index + app.txWidth]
+    elif app.page == 5:
+        app.currTxs = currBlockTxs[app.index: app.index + app.txWidth]
 
 def viewKeyHandler(app, event):
-    pass
+    if event.key == '0':
+        app.viewingBlockTxs = False
+    elif event.key == '1':
+        app.viewingBlockTxs = True
+        app.currTxs = app.currBlocks[0].txs
+    elif event.key == '2':
+        app.viewingBlockTxs = True
+        app.currTxs = app.currBlocks[1].txs
+    elif event.key == "3":
+        app.viewingBlockTxs = True
+        app.currTxs = app.currBlocks[2].txs
+
+def viewBlockTxsKeyHandler(app, event):
+    if event.key == 'Down':
+        moveIndex(app, 1)
+    elif event.key == 'Up':
+        moveIndex(app, -1)
+    elif event.key == "s":
+        moveIndex(app, -app.index)
+
+def moveBlockIndex(app, Dir):
+    blockCount = len(app.blocks)
+    maxViewable = min(app.blockWidth, blockCount)
+    app.blockIndex += Dir
+    if app.blockWidth > maxViewable:
+        app.blockIndex += Dir
+    if app.blockIndex < 0:
+        app.blockIndex = 0
+    elif app.blockIndex > blockCount - app.blockWidth:
+        app.blockIndex = blockCount - app.blockWidth
+    app.currBlocks = app.blocks[app.blockIndex: app.blockIndex + app.blockWidth]
 
 def navBarClickHandler(app, event):
     if event.y > app.topMargin:
@@ -55,7 +93,18 @@ def mintClickHandler(app, event):
     pass
 
 def recentClickHandler(app, event):
-    pass
+    txTableClickHandler(app, event)
+
+def txTableClickHandler(app, event):
+    txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth
+    txStart = app.topMargin + app.topPad
+    txEnd = app.height-app.topMargin
+    if (event.y > txStart) and (event.y < txStart + app.txWidth*txBoxHeight):
+        box = math.floor((event.y - txStart)/txBoxHeight)
 
 def viewClickHandler(app, event):
-    pass
+    if event.y > app.topMargin:
+        if event.x < app.sideMargin*3:
+            moveBlockIndex(app, -1)
+        elif event.x > app.width - 3*app.sideMargin:
+            moveBlockIndex(app, +1)

@@ -9,66 +9,123 @@ from hashlib import sha256
 # sql Functions
 from sqlcalls import *
 
+# keyPress and mousePress handlers:
+from handlers import *
+
+# page drawers
+from draw import *
+
 # blockchain functions
 from blockchain import *
-from blockchain import BlockChain, Block, Tx, 
 
 #create databases in memory
 chainDB = sqlite3.connect('chain.db') # our blockchain JSON strings
-txsDB = sqlite3.connect('myTxs.db') #
-
+txsDB = sqlite3.connect('myTxs.db') 
+''' --- page number guide --- 
+       0: Tutorial
+       1: Overview
+       2: Send
+       3: Mint
+       4: Recent
+       5: View BlockChain'''
 
 def appStarted(app):
     app.txWidth = 15
     app.topMargin = 60
     app.sideMargin = 20
-    initIndex(app)
+    app.page = 0
+    app.pages = ['Tutorial', 'Overview', 'Send', 'Mint', 'Recent', 'View Chain']
+    app.userAddress = 'Alby'
+    # list of pending transactions in memory
+    app.pendingTxs = []
+    app.blocks = testBlocks() # TEMP 
+
+    # initialize recent page details
+    app.index = 0 # starting index in app.myTxs, will show this tx and following 9 txs
+    app.txWidth = 10 # number of transactions viewable at a time 
+    app.topPad = 20
+    resetRecentPage(app)
+
+    # initialize block chain viewing page details
+    app.blockWidth = 3
+    app.currBlocks = app.blocks[0:app.blockWidth]
+    app.blockIndex = 0
+    resetViewPage(app)
+    # initIndex(app)
     # populate(app, 1000)
 
+def resetViewPage(app):
+    app.index = 0
+    app.viewingBlockTxs = False
+    maxChainTxsViewable = min(app.txWidth, len(app.myTxs))
+    app.currTxs = app.myTxs[0:maxChainTxsViewable] # currently viewable transactions
+
+def resetRecentPage(app):
+    app.index = 0
+    app.myTxs = testMyTxs2() # all of user's transactions
+    maxRecentViewable = min(app.txWidth, len(app.myTxs))
+    app.currTxs = app.myTxs[0:maxRecentViewable] # currently viewable transactions
+
 def timerFired(app):
-    pass
+    app.timerDelay = 250
+
+def pageHandler(app, event):
+    if event.key == "Right":
+        app.page += 1
+        if app.page > 5:
+            app.page = 0
+        return True
+    if event.key == "Left":
+        app.page -= 1
+        if app.page < 0:
+            app.page = 5
+        return True
 
 def keyPressed(app, event):
-    if event.key == 'Down':
-        moveIndex(app, 1)
-    elif event.key == 'Up':
-        moveIndex(app, -1)
-    elif event.key == "p":
-        print('populating...')
-        populate(app, app.txWidth)
-        dIndex = app.txCount - app.index - app.txWidth
-        moveIndex(app, dIndex)
-    elif event.key == "s":
-        moveIndex(app, -app.index)
+    if pageHandler(app, event):
+        return
+    elif app.page == 0:
+        tutorialKeyHandler(app, event)
+    elif app.page == 1:
+        overviewKeyHandler(app, event)
+    elif app.page == 2:
+        sendKeyHandler(app, event)
+    elif app.page == 3:
+        mintKeyHandler(app, event)
+    elif app.page == 4:
+        recentKeyHandler(app, event)
+    elif app.page == 5:
+        viewKeyHandler(app, event)
 
-def moveIndex(app, dir):
-    app.index += dir
-    if app.index < 0:
-        app.index = 0
-    elif app.index > app.txCount - app.txWidth:
-        app.index = app.txCount - app.txWidth
-    app.currTxs = app.txs[app.index: app.index + app.txWidth]
+def mousePressed(app, event):
+    navBarClickHandler(app, event)
+    if app.page == 0:
+        tutorialClickHandler(app, event)
+    elif app.page == 1:
+        overviewClickHandler(app, event)
+    elif app.page == 2:
+        sendClickHandler(app, event)
+    elif app.page == 3:
+        mintClickHandler(app, event)
+    elif app.page == 4:
+        recentClickHandler(app, event)
+    elif app.page == 5:
+        viewClickHandler(app, event)
 
 def redrawAll(app, canvas):
-    drawTitle(app, canvas)
-    if app.txs != []:
-        drawTxs(app, canvas)
-
-def drawTxs(app, canvas):
-    txBoxHeight = (app.height-2*app.topMargin)//app.txWidth 
-    for i in range(app.txWidth):
-        tx = app.currTxs[i]
-        x0, y0 = app.sideMargin, app.topMargin + i*txBoxHeight
-        drawTx(app, canvas, tx, x0, y0)
-
-def drawTx(app, canvas, tx, x0, y0):
-    txBoxHeight = (app.height-2*app.topMargin)//app.txWidth 
-    txBoxWidth = app.width - 2*app.sideMargin
-    canvas.create_rectangle(x0, y0, x0 + txBoxWidth, y0 + txBoxHeight, width=2)
-    txtCy = y0 + txBoxHeight/2
-    ID, sender, receiver, amt, time = tx
-    canvas.create_text(x0 + app.sideMargin, txtCy, text=(f'{ID}: From: {sender} To: {receiver} -- ${amt} -- %0.3f' %time), 
-            font='Arial 10 bold', anchor=W)
+    drawNavbar(app, canvas)
+    if app.page == 0:
+        drawTutorial(app, canvas)
+    elif app.page == 1:
+        drawOverview(app, canvas)
+    elif app.page == 2:
+        drawSend(app, canvas)
+    elif app.page == 3:
+        drawMint(app, canvas)
+    elif app.page == 4:
+        drawRecent(app, canvas)
+    elif app.page == 5:
+        drawView(app, canvas)
 
 # makeInitialTable()
-# runApp(width=700, height=500)
+runApp(width=700, height=500)

@@ -28,6 +28,11 @@ def drawMint(app, canvas):
     pass
 
 def drawRecent(app, canvas):
+    colsX = drawTxColumns(app, canvas)
+    viewableTxs = min(app.txWidth, len(app.myTxs))
+    drawTxs(app, canvas, colsX, viewableTxs, app.currTxs)
+
+def drawTxColumns(app, canvas):
     topPad = 20
     tableWidth = app.width-2*app.sideMargin
     startY, endY = app.topMargin, app.topMargin + topPad
@@ -57,18 +62,16 @@ def drawRecent(app, canvas):
     canvas.create_text((labelEnd+amtEnd)/2, app.topMargin + topPad/2, text='Amount', font="Arial 14 bold")
 
     colsX = app.sideMargin, dateEnd, typeEnd, labelEnd
-    drawRecentTxs(app, canvas, colsX)
     canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
+    return colsX
 
-def drawRecentTxs(app, canvas, colsX):
-    topPad = 20
+def drawTxs(app, canvas, colsX, viewable, txs):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth
-    viewableTxs = min(app.txWidth, len(app.myTxs))
     if app.index%2 == 0:
         colorMode = 0
     else:
         colorMode = 1
-    for i in range(viewableTxs):
+    for i in range(viewable):
         if colorMode == 1:
             if i%2 == 0:
                 color = 'lightGrey'
@@ -80,8 +83,8 @@ def drawRecentTxs(app, canvas, colsX):
             else:
                 color = 'lightGrey'
 
-        tx = app.currTxs[i]
-        x0, y0 = app.sideMargin, app.topMargin + topPad + i*txBoxHeight
+        tx = txs[i]
+        x0, y0 = app.sideMargin, app.topMargin + app.topPad + i*txBoxHeight
         drawTx(app, canvas, tx, x0, y0, colsX, color)
 
 def drawTx(app, canvas, tx, x0, y0, colsX, color):
@@ -124,8 +127,34 @@ def drawTx(app, canvas, tx, x0, y0, colsX, color):
 def drawView(app, canvas):
     
     # when user presses one of three keys (1,2,3) the transactions for that block are shown in a new draw page
-    drawBlocks()
+    drawBlocks(app, canvas)
     if app.viewingBlockTxs:
+        drawTxColumns(app, canvas)
         drawBlockTxs(app, canvas, app.currBlocks[app.viewBlockIndex])
-    
+
+def drawBlocks(app, canvas):
+    block1, block2, block3 = None, None, None
+    if len(app.blocks) == 1:
+        block1 = app.blocks[0]
+    elif len(app.blocks) == 2:
+        block1, block2 = app.blocks[0], app.blocks[1]
+    elif len(app.blocks) == 3:
+        block1, block2, block3 = app.blocks[0], app.blocks[1], app.blocks[2]
+    else:
+        block1, block2, block3 = app.currBlocks[0], app.currBlocks[1], app.currBlocks[2]
+
+    # first block
+    canvas.create_text(app.width/4, app.height/4, text=str(block1))
+
+    # second block
+    canvas.create_text(app.width/2, app.height/3, text=str(block2))
+
+    # third block
+    canvas.create_text(3*app.width/4, app.height/2, text=str(block3))
+
+
+
+def drawBlockTxs(app, canvas, block):
+    viewableTxs = min(app.txWidth, len(block.txs))
+    drawTxs(app, canvas, viewableTxs, block.txs)
 
