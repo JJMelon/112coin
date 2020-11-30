@@ -6,9 +6,6 @@ from dataclasses import make_dataclass
 from cmu_112_graphics import *
 from hashlib import sha256
 
-# sql Functions
-from sqlcalls import *
-
 # keyPress and mousePress handlers:
 from handlers import *
 
@@ -34,11 +31,12 @@ def appStarted(app):
     app.topMargin = 60
     app.sideMargin = 20
     app.page = 0
+    app.user = User() # TODO store User keypair in file and load every app started
     app.pages = ['Tutorial', 'Overview', 'Send', 'Mint', 'Recent', 'View Chain']
     app.userAddress = 'Alby'
     # list of pending transactions in memory
     app.pendingTxs = []
-    app.blocks = testBlocks() # TEMP 
+    app.chain = loadChain()
 
     # initialize recent page details
     app.index = 0 # starting index in app.myTxs, will show this tx and following 9 txs
@@ -48,8 +46,9 @@ def appStarted(app):
 
     # initialize block chain viewing page details
     app.blockWidth = 3
-    app.currBlocks = app.blocks[0:app.blockWidth]
-    app.blockIndex = 0
+    app.currBlocks = app.chain.blocks[0:app.blockWidth]
+    app.blockIndex = 0 # which index in the app.blocks list is first in the view list
+    app.blockDrawSize = (app.width-4*app.sideMargin)/3
     resetViewPage(app)
     # initIndex(app)
     # populate(app, 1000)
@@ -57,12 +56,14 @@ def appStarted(app):
 def resetViewPage(app):
     app.index = 0
     app.viewingBlockTxs = False
-    maxChainTxsViewable = min(app.txWidth, len(app.myTxs))
-    app.currTxs = app.myTxs[0:maxChainTxsViewable] # currently viewable transactions
+    app.blockTxsIndex = 0 # index of which block in the 3 app.currBlocks is currently selected to show its transactions 
+    currBlockTxs = app.currBlocks[app.blockTxsIndex].txs # currently viewable transactions
+    maxViewable = min(app.txWidth, len(currBlockTxs))
+    app.currTxs = currBlockTxs[:maxViewable]
 
 def resetRecentPage(app):
     app.index = 0
-    app.myTxs = testMyTxs2() # all of user's transactions
+    app.myTxs = testMyTxs(app.user) # all of user's transactions
     maxRecentViewable = min(app.txWidth, len(app.myTxs))
     app.currTxs = app.myTxs[0:maxRecentViewable] # currently viewable transactions
 

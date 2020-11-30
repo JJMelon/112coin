@@ -20,12 +20,13 @@ def recentKeyHandler(app, event):
     elif event.key == "s":
         moveIndex(app, -app.index)
 
+# moves the start tx index in the list of txs shown
 def moveIndex(app, Dir):
     if app.page == 4:
         txsCount = len(app.myTxs)
         maxViewable = min(app.txWidth, txsCount)
     elif app.page == 5:
-        currBlockTxs = app.currBlocks[app.blockIndex].txs
+        currBlockTxs = app.currBlocks[app.blockTxsIndex].txs
         txsCount = len(currBlockTxs)
         maxViewable = min(app.txWidth, txsCount)
     app.index += Dir
@@ -45,13 +46,18 @@ def viewKeyHandler(app, event):
         app.viewingBlockTxs = False
     elif event.key == '1':
         app.viewingBlockTxs = True
-        app.currTxs = app.currBlocks[0].txs
+        app.blockTxsIndex = 0
+        moveIndex(app, 0)
     elif event.key == '2':
         app.viewingBlockTxs = True
-        app.currTxs = app.currBlocks[1].txs
+        app.blockTxsIndex = 1
+        moveIndex(app, 0)
     elif event.key == "3":
         app.viewingBlockTxs = True
-        app.currTxs = app.currBlocks[2].txs
+        app.blockTxsIndex = 2
+        moveIndex(app, 0)
+    if app.viewingBlockTxs:
+        viewBlockTxsKeyHandler(app, event)
 
 def viewBlockTxsKeyHandler(app, event):
     if event.key == 'Down':
@@ -62,7 +68,7 @@ def viewBlockTxsKeyHandler(app, event):
         moveIndex(app, -app.index)
 
 def moveBlockIndex(app, Dir):
-    blockCount = len(app.blocks)
+    blockCount = len(app.chain.blocks)
     maxViewable = min(app.blockWidth, blockCount)
     app.blockIndex += Dir
     if app.blockWidth > maxViewable:
@@ -71,7 +77,7 @@ def moveBlockIndex(app, Dir):
         app.blockIndex = 0
     elif app.blockIndex > blockCount - app.blockWidth:
         app.blockIndex = blockCount - app.blockWidth
-    app.currBlocks = app.blocks[app.blockIndex: app.blockIndex + app.blockWidth]
+    app.currBlocks = app.chain.blocks[app.blockIndex: app.blockIndex + app.blockWidth]
 
 def navBarClickHandler(app, event):
     if event.y > app.topMargin:
