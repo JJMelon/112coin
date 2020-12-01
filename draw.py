@@ -34,7 +34,7 @@ def drawMint(app, canvas):
 
 def drawRecent(app, canvas):
     colsX = drawMyTxColumns(app, canvas)
-    viewableTxs = min(app.txWidth, len(app.myTxs))
+    viewableTxs = min(app.txWidth, len(app.humanUserTxs[app.userAddress]))
     drawMyTxs(app, canvas, colsX, viewableTxs, app.currTxs)
 
 def drawMyTxColumns(app, canvas):
@@ -142,25 +142,12 @@ def drawView(app, canvas):
         drawBlocks(app, canvas)
 
 def drawBlocks(app, canvas):
-    block1, block2, block3 = None, None, None
-    if len(app.chain.blocks) == 1:
-        block1 = app.chain.blocks[0]
-    elif len(app.chain.blocks) == 2:
-        block1, block2 = app.chain.blocks[0], app.chain.blocks[1]
-    elif len(app.chain.blocks) == 3:
-        block1, block2, block3 = app.chain.blocks[0], app.chain.blocks[1], app.chain.blocks[2]
-    else:
-        block1, block2, block3 = app.currBlocks[0], app.currBlocks[1], app.currBlocks[2]
-
-
-    # first block
-    drawBlock(app, canvas, block1, app.sideMargin)
-
-    # second block
-    drawBlock(app, canvas, block2, 2*app.sideMargin + app.blockDrawSize)
-
-    # third block
-    drawBlock(app, canvas, block3, 3*app.sideMargin + 2*app.blockDrawSize)
+    i = 1
+    for block in app.currBlocks:
+        if i > 3:
+            break
+        drawBlock(app, canvas, block, i*app.sideMargin + (i-1)*app.blockDrawSize)
+        i += 1
 
 def drawBlock(app, canvas, block, x0):
     yPad = app.height/5
@@ -179,7 +166,7 @@ def drawBlock(app, canvas, block, x0):
     canvas.create_text(x0 + timeX, y0 + timeY, text=formatTime(block.time), anchor='n', font='Arial 8')
     canvas.create_text(x0 + minterX, y0 + minterY, text=f'Minter: {block.minter}', anchor='nw', font='Arial 10 bold')
 
-    prevText = f'{block.prevHash[0:30]}...'
+    prevText = str(block.prevHash)[0:30] + '...'
     if block.prevHash == '0':
         prevText = 'None'
     canvas.create_text(x0 + prevHashX, prevHashY, text="Pevious Block's Hash:", anchor='nw', font='Arial 10 bold')
@@ -207,13 +194,15 @@ def drawBriefTxs(app, canvas, txs, x0, y0, x1, y1):
         # sender column
         sendWidth = 3*tableWidth/7
         sendEnd = x0 + 10 + sendWidth
-        canvas.create_text(x0 + 10, txtCy, text=(f'{tx.senderKey[0:15]}... -->'), 
+        senderTxt = str(tx.senderKey)[0:15] + '... -->'
+        canvas.create_text(x0 + 10, txtCy, text=senderTxt, 
                 font='Arial 8', anchor='w')
 
         # receiver column
         recWidth = 3*tableWidth/7
         recEnd = sendEnd + recWidth
-        canvas.create_text(sendEnd, txtCy, text=(f'{tx.receiver[0:15]}...'), 
+        receiverTxt = str(tx.receiver)[0:15] + '...'
+        canvas.create_text(sendEnd, txtCy, text=receiverTxt, 
                 font='Arial 8', anchor='w')
 
         # amount column
@@ -286,7 +275,7 @@ def drawTx(app, canvas, tx, x0, y0, colsX, color):
     txBoxWidth = app.width - 2*app.sideMargin
     canvas.create_rectangle(x0, y0, x0 + txBoxWidth, y0 + txBoxHeight, width=2, fill=color)
     txtCy = y0 + txBoxHeight/2
-    sender, receiver, amt, date = tx.senderKey, tx.receiver, tx.amt, tx.date
+    sender, receiver, amt, date = str(tx.senderKey), str(tx.receiver), str(tx.amt), tx.date
     date = formatTime(date)
     pad = 10
     dateX, typeX, labelX, amtX = colsX
@@ -296,13 +285,13 @@ def drawTx(app, canvas, tx, x0, y0, colsX, color):
             font='Arial 8 bold', anchor='w')
     
     # sender column
-    canvas.create_text(typeX+pad, txtCy, text=(f'{sender[0:20]}'), 
+    canvas.create_text(typeX+pad, txtCy, text=sender[0:20], 
             font='Arial 8 bold', anchor='w')
 
     # receiver column
-    canvas.create_text(labelX+pad, txtCy, text=(f'{receiver[0:20]}'), 
+    canvas.create_text(labelX+pad, txtCy, text=receiver[0:20], 
             font='Arial 8 bold', anchor='w')
 
     # amount column
-    canvas.create_text(amtX, txtCy, text=(f'{amt} (112C)'), 
+    canvas.create_text(amtX, txtCy, text=(amt + '(112C)'), 
             font='Arial 8 bold', anchor='w')

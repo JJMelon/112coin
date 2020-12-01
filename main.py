@@ -15,9 +15,6 @@ from draw import *
 # blockchain functions
 from blockchain import *
 
-#create databases in memory
-chainDB = sqlite3.connect('chain.db') # our blockchain JSON strings
-txsDB = sqlite3.connect('myTxs.db') 
 ''' --- page number guide --- 
        0: Tutorial
        1: Overview
@@ -26,18 +23,81 @@ txsDB = sqlite3.connect('myTxs.db')
        4: Recent
        5: View BlockChain'''
 
+# we try to load the database data, if it's not available we create the database and tables
+def loadDatabaseData(app):
+    try:
+        app.humanUsers = fetchHumanUsers()
+        app.currUser = app.humanUsers[0]
+        app.compUsers = fetchCompUsers()
+        app.chain = loadChain()
+        initHumanUserTxsList(app)
+    except: # no database created yet, we make the chain.db file and the necessary tables
+        makeTable('compusers', blocks=False)
+        makeTable('humnausers', blocks=False)
+        makeTable('blocks')
+        app.humanUsers = [User()]
+        app.currUser = app.humanUsers[0]
+        app.compUsers = compUsers()
+        app.userAddress = app.currUser.rawPubk
+        genesis = populateBalances(app) # create initial block giving money to users from coinbase
+        app.chain = BlockChain(genesis)
+        insertBlock(app.chain.blocks[0])
+        app.humanUserTxs = {app.userAddress:myTxs(app, app.currUser)} # stores the tx lists for each human user, so we can quickly load them when switching users
+
+# give each user in app.compUsers a random amount of starting money by creating transactions from the coinbase
+# returns a genesis block with these transactions
+def populateBalances(app):
+    txs = []
+    for user in app.compUsers: # get users to give them each a starting amt
+        tx = userReward(user)
+        txs.append(tx)
+    
+    # reward original humanuser is 10 112C
+    txs.append(userReward(app.currUser, randomAmt=False, amount=10))
+    block = Block(txs, None, 'God') # create our genesis block
+    return block
+
+# returns a transaction from the coinbase to a user
+# TODO FIX human user getting random amount instead of 10 112coin when first startup
+def userReward(user, randomAmt=True, amount=None):
+    receiver = user.rawPubk
+    sender = 'coinbase'
+    amt = round(random.uniform(0.5,10), 2) #smallest unit of currency is a kos or 0.01 112C
+    if not randomAmt:
+        amt = amount
+    date = time.time()
+    Hash = Tx.msgHash(sender, receiver, amt, date)
+    tx = Tx(None, receiver, amt, date, fromValues=True, values=(None, None, Hash))
+    return tx
+
+# initializes dict of txs lists for each user in app.humanUsers
+def initHumanUserTxsList(app):
+    usersTxs = {}
+    for user in app.humanUsers:
+        name = user.rawPubk
+        txs = myTxs(app, user)
+        usersTxs[name] = txs
+    app.humanUserTxs = usersTxs
+
+# returns list of txs from the chain that involve given user
+def myTxs(app, user):
+    address = user.rawPubk
+    txs = []
+    for block in app.chain.blocks:
+        for tx in block.txs:
+            if tx.senderKey == address or tx.receiver == address:
+                txs.append(tx)
+    return txs
+
 def appStarted(app):
     app.txWidth = 15
     app.topMargin = 60
     app.sideMargin = 20
     app.page = 0
-    app.user = User() # TODO store User keypair in file and load every app started
     app.pages = ['Tutorial', 'Overview', 'Send', 'Mint', 'Recent', 'View Chain']
-    app.userAddress = 'Alby'
     # list of pending transactions in memory
     app.pendingTxs = []
-    app.chain = loadChain()
-
+    loadDatabaseData(app)
     # initialize recent page details
     app.index = 0 # starting index in app.myTxs, will show this tx and following 9 txs
     app.txWidth = 10 # number of transactions viewable at a time 
@@ -63,9 +123,9 @@ def resetViewPage(app):
 
 def resetRecentPage(app):
     app.index = 0
-    app.myTxs = testMyTxs(app.user) # all of user's transactions
-    maxRecentViewable = min(app.txWidth, len(app.myTxs))
-    app.currTxs = app.myTxs[0:maxRecentViewable] # currently viewable transactions
+    currUserTxs = app.humanUserTxs[app.userAddress]
+    maxRecentViewable = min(app.txWidth, len(currUserTxs))
+    app.currTxs = currUserTxs[0:maxRecentViewable] # currently viewable transactions
 
 def timerFired(app):
     app.timerDelay = 250

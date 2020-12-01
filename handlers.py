@@ -23,7 +23,7 @@ def recentKeyHandler(app, event):
 # moves the start tx index in the list of txs shown
 def moveIndex(app, Dir):
     if app.page == 4:
-        txsCount = len(app.myTxs)
+        txsCount = len(app.humanUserTxs[app.userAddress])
         maxViewable = min(app.txWidth, txsCount)
     elif app.page == 5:
         currBlockTxs = app.currBlocks[app.blockTxsIndex].txs
@@ -37,11 +37,12 @@ def moveIndex(app, Dir):
     elif app.index > txsCount - app.txWidth:
         app.index = txsCount - app.txWidth
     if app.page == 4:
-        app.currTxs = app.myTxs[app.index: app.index + app.txWidth]
+        app.currTxs = app.humanUserTxs[app.userAddress][app.index: app.index + app.txWidth]
     elif app.page == 5:
         app.currTxs = currBlockTxs[app.index: app.index + app.txWidth]
 
-def viewKeyHandler(app, event):
+# TODO fix list index out of range bug when < 3 blocks exist in chain 
+def viewKeyHandler(app, event): 
     if event.key == '0':
         app.viewingBlockTxs = False
     elif event.key == '1':
