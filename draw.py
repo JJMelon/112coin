@@ -1,5 +1,6 @@
 import time
 
+
 # takes time in seconds since epoch and returns short version string MM/DD/YY-HH:MM:SS
 def formatTime(Time):
     struct = time.localtime(Time)
@@ -24,18 +25,44 @@ def drawTutorial(app, canvas):
     pass
 
 def drawOverview(app, canvas):
-    pass
+    leftMargin = 20
+    topPad = 20
+    boxHeight, boxWidth = 40, 300
+    boxX0, boxY0 = app.width/2-boxWidth/2, app.topMargin + 7.5*topPad
+    boxX1, boxY1 = boxX0 + boxWidth, boxY0 + boxHeight
+    canvas.create_text(leftMargin, app.topMargin + topPad, text=f"Balance: {app.chain.accounts[app.userAddress]}", font='Arial 18 bold', anchor='nw')
+    canvas.create_text(leftMargin, app.topMargin + 2.5*topPad, text=f'Public Key: {app.userAddress}', 
+                                            font='Arial 8', anchor='nw')
+    canvas.create_text(leftMargin, app.topMargin + 4*topPad, text=f'Private Key: {app.currUser.rawPrivk}', 
+                                            font='Arial 8', anchor='nw')
+    canvas.create_text(app.width/2, app.topMargin + 6*topPad, text='Your Stake',
+             font='Arial 18 bold')
+    canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width=2)
+    amt, startTime = app.chain.validators.get(app.userAddress, (None, None))
+    
+    # if we are a validator and have an active stake
+    if startTime != None:
+        timeLeft = (startTime + app.stakeDuration) - time.time()
+        Text = 'Amt: %0.2f | Time Left: %ds' % (amt, timeLeft)
+    else:
+        Text = 'No Active Stake!'
+    canvas.create_text((boxX1+boxX0)/2, (boxY1+boxY0)/2, text=Text,
+            font='Arial 12 bold')
 
 def drawSend(app, canvas):
     pass
 
+# TODO show current block reward by summing tx fees for all txs in app.txsPool
 def drawMint(app, canvas):
-    pass
+    topPad = 20
+    colsX = drawTxColumns(app, canvas, app.topMargin + 3*topPad)
+    drawTxs(app, canvas, colsX, app.currPoolTxs, app.topMargin + app.topPad + 3*topPad)
+    
 
 def drawRecent(app, canvas):
     colsX = drawMyTxColumns(app, canvas)
-    viewableTxs = min(app.txWidth, len(app.humanUserTxs[app.userAddress]))
-    drawMyTxs(app, canvas, colsX, viewableTxs, app.currTxs)
+    currUserTxs = app.humanUserTxs[app.userAddress]
+    drawTxs(app, canvas, colsX, currUserTxs, app.topMargin + app.topPad, myTxs=True)
 
 def drawMyTxColumns(app, canvas):
     topPad = 20
@@ -70,31 +97,6 @@ def drawMyTxColumns(app, canvas):
     canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
     return colsX
 
-def drawMyTxs(app, canvas, colsX, viewable, txs):
-    txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth
-    if app.index%2 == 0:
-        colorMode = 0
-    else:
-        colorMode = 1
-    for i in range(viewable):
-        # makes color unchangable when there are less than 10 txs, removing weird changing color effect
-        if len(app.currTxs) < app.txWidth:
-            colorMode = 0
-        if colorMode == 1:
-            if i%2 == 0:
-                color = 'lightGrey'
-            else:
-                color = 'white'
-        else:
-            if i%2 == 0:
-                color = 'white'
-            else:
-                color = 'lightGrey'
-
-        tx = txs[i]
-        x0, y0 = app.sideMargin, app.topMargin + app.topPad + i*txBoxHeight
-        drawMyTx(app, canvas, tx, x0, y0, colsX, color)
-
 def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth 
     txBoxWidth = app.width - 2*app.sideMargin
@@ -125,7 +127,7 @@ def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
             font='Arial 8 bold', anchor='w')
 
     # label column
-    canvas.create_text(labelX+pad, txtCy, text=(f'{label[0:15]}'), 
+    canvas.create_text(labelX+pad, txtCy, text=(str(label)[0:15]), 
             font='Arial 8 bold', anchor='w')
 
     # amount column
@@ -135,9 +137,8 @@ def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
 def drawView(app, canvas):
     # when user presses one of three keys (1,2,3) the transactions for that block are shown in a new draw page
     if app.viewingBlockTxs:
-        maxViewable = len(app.currTxs)
-        colsX = drawTxColumns(app, canvas)
-        drawTxs(app, canvas, colsX, maxViewable, app.currTxs)
+        colsX = drawTxColumns(app, canvas, app.topMargin)
+        drawTxs(app, canvas, colsX, app.currBlockTxs, app.topMargin + app.topPad)
     else:
         drawBlocks(app, canvas)
 
@@ -164,7 +165,7 @@ def drawBlock(app, canvas, block, x0):
     minterX = prevHashX = hashX = 5
     canvas.create_text(x0 + heightX, y0 + heightY, text=f'Block: {height}', font='Arial 12 bold')
     canvas.create_text(x0 + timeX, y0 + timeY, text=formatTime(block.time), anchor='n', font='Arial 8')
-    canvas.create_text(x0 + minterX, y0 + minterY, text=f'Minter: {block.minter}', anchor='nw', font='Arial 10 bold')
+    canvas.create_text(x0 + minterX, y0 + minterY, text=f'Minter: {block.minter[0:20]}', anchor='nw', font='Arial 10 bold')
 
     prevText = str(block.prevHash)[0:30] + '...'
     if block.prevHash == '0':
@@ -194,65 +195,64 @@ def drawBriefTxs(app, canvas, txs, x0, y0, x1, y1):
         # sender column
         sendWidth = 3*tableWidth/7
         sendEnd = x0 + 10 + sendWidth
-        senderTxt = str(tx.senderKey)[0:15] + '... -->'
+        senderTxt = str(tx.senderKey)[0:10] + '...=>'
         canvas.create_text(x0 + 10, txtCy, text=senderTxt, 
                 font='Arial 8', anchor='w')
 
         # receiver column
         recWidth = 3*tableWidth/7
         recEnd = sendEnd + recWidth
-        receiverTxt = str(tx.receiver)[0:15] + '...'
+        receiverTxt = str(tx.receiver)[0:10] + '...'
         canvas.create_text(sendEnd, txtCy, text=receiverTxt, 
                 font='Arial 8', anchor='w')
 
         # amount column
         amtWidth = tableWidth/7
-        canvas.create_text(recEnd, txtCy, text=tx.amt, font='Arial 8 bold', anchor='w')
+        canvas.create_text(recEnd-10, txtCy, text=tx.amt, font='Arial 8 bold', anchor='w')
 
-def drawTxColumns(app, canvas):
+def drawTxColumns(app, canvas, startY):
     topPad = 20
     tableWidth = app.width-2*app.sideMargin
-    startY, endY = app.topMargin, app.topMargin + topPad
+    endY = startY + topPad
 
     # Date Column
     dateWidth = 2*tableWidth/11
     dateEnd = app.sideMargin + dateWidth
     canvas.create_rectangle(app.sideMargin, startY, dateEnd, endY)
-    canvas.create_text((app.sideMargin+dateWidth)/2, app.topMargin + topPad/2, text='Date', font="Arial 14 bold")
+    canvas.create_text((app.sideMargin+dateWidth)/2, startY + topPad/2, text='Date', font="Arial 14 bold")
 
     # Sender Column
     sendWidth = 4*tableWidth/11
     sendEnd = app.sideMargin + dateWidth + sendWidth
     canvas.create_rectangle(dateEnd, startY, sendEnd, endY)
-    canvas.create_text((dateEnd+sendEnd)/2, app.topMargin + topPad/2, text='Sender', font="Arial 14 bold")
+    canvas.create_text((dateEnd+sendEnd)/2, startY + topPad/2, text='Sender', font="Arial 14 bold")
 
     # Receiver Column
     recWidth = 4*tableWidth/11
     recEnd = sendEnd + recWidth
     canvas.create_rectangle(sendEnd, startY, recEnd, endY)
-    canvas.create_text((sendEnd+recEnd)/2, app.topMargin + topPad/2, text='Label', font="Arial 14 bold")
+    canvas.create_text((sendEnd+recEnd)/2, startY + topPad/2, text='Label', font="Arial 14 bold")
 
     # Amount Column
     amtWidth = tableWidth/11
     amtEnd = recEnd + amtWidth
     canvas.create_rectangle(recEnd, startY, amtEnd, endY)
-    canvas.create_text((recEnd+amtEnd)/2, app.topMargin + topPad/2, text='Amt', font="Arial 14 bold")
+    canvas.create_text((recEnd+amtEnd)/2, startY + topPad/2, text='Amt', font="Arial 14 bold")
 
     colsX = app.sideMargin, dateEnd, sendEnd, recEnd
     canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
     return colsX
 
-
 # txs viewer draw function for a block's transactions
-def drawTxs(app, canvas, colsX, viewable, txs):
+def drawTxs(app, canvas, colsX, txs, startY, myTxs=False):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth
     if app.index%2 == 0:
         colorMode = 0
     else:
         colorMode = 1
-    for i in range(viewable):
+    for i in range(len(txs)):
         # makes color unchangable when there are less than 10 txs, removing weird changing color effect
-        if len(app.currTxs) < app.txWidth:
+        if len(txs) < app.txWidth:
             colorMode = 0
         if colorMode == 1:
             if i%2 == 0:
@@ -266,9 +266,11 @@ def drawTxs(app, canvas, colsX, viewable, txs):
                 color = 'lightGrey'
 
         tx = txs[i]
-        x0, y0 = app.sideMargin, app.topMargin + app.topPad + i*txBoxHeight
-        drawTx(app, canvas, tx, x0, y0, colsX, color)
-
+        x0, y0 = app.sideMargin, startY + i*txBoxHeight
+        if myTxs:
+            drawMyTx(app, canvas, tx, x0, y0, colsX, color)
+        else:
+            drawTx(app, canvas, tx, x0, y0, colsX, color)
 
 def drawTx(app, canvas, tx, x0, y0, colsX, color):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth 
@@ -285,13 +287,13 @@ def drawTx(app, canvas, tx, x0, y0, colsX, color):
             font='Arial 8 bold', anchor='w')
     
     # sender column
-    canvas.create_text(typeX+pad, txtCy, text=sender[0:20], 
+    canvas.create_text(typeX+pad, txtCy, text=sender[0:30], 
             font='Arial 8 bold', anchor='w')
 
     # receiver column
-    canvas.create_text(labelX+pad, txtCy, text=receiver[0:20], 
+    canvas.create_text(labelX+pad, txtCy, text=receiver[0:30], 
             font='Arial 8 bold', anchor='w')
 
     # amount column
-    canvas.create_text(amtX, txtCy, text=(amt + '(112C)'), 
+    canvas.create_text(amtX, txtCy, text=(amt + ' (112C)'), 
             font='Arial 8 bold', anchor='w')

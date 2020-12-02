@@ -77,7 +77,7 @@ def sqlTransaction(query, msg='', fetch=False):
         c.execute(query)
         result = c.fetchall()
         database.commit()
-        print(msg)
+        # print(msg)
     except sqlite3.Error as error:
         print("Sqlite error returned: ", error)
     finally:
@@ -109,4 +109,9 @@ def insertBlock(block):
 def insertHumanUser(user):
     msg = "Inserted User into chain.db"
     query = "INSERT INTO humanusers (user) VALUES ('%s')" %user.rawString
+    sqlTransaction(query, msg)
+
+def insertCompUser(user):
+    msg = "Inserted User into chain.db"
+    query = "INSERT INTO compusers (user) VALUES ('%s')" %user.rawString
     sqlTransaction(query, msg)

@@ -10,7 +10,12 @@ def sendKeyHandler(app, event):
     pass
 
 def mintKeyHandler(app, event):
-    pass
+    if event.key == 'Down':
+        moveIndex(app, 1)
+    elif event.key == 'Up':
+        moveIndex(app, -1)
+    elif event.key == "s":
+        moveIndex(app, -app.index)
 
 def recentKeyHandler(app, event):
     if event.key == 'Down':
@@ -22,24 +27,36 @@ def recentKeyHandler(app, event):
 
 # moves the start tx index in the list of txs shown
 def moveIndex(app, Dir):
-    if app.page == 4:
+    if app.page == 1 or app.page == 2: # don't worry about moving on these pages
+        return
+    if app.page == 3: # mint page
+        txsCount = len(app.txsPool)
+        maxViewable = min(txsCount, app.txsPoolWidth)
+        txWidth = app.txsPoolWidth
+    elif app.page == 4: # recent page
         txsCount = len(app.humanUserTxs[app.userAddress])
         maxViewable = min(app.txWidth, txsCount)
-    elif app.page == 5:
+        txWidth = app.txWidth
+    elif app.page == 5: # block viewing page
         currBlockTxs = app.currBlocks[app.blockTxsIndex].txs
         txsCount = len(currBlockTxs)
         maxViewable = min(app.txWidth, txsCount)
+        txWidth = app.txWidth
     app.index += Dir
-    if app.txWidth > maxViewable:
+    if txWidth > maxViewable:
         app.index += Dir
     if app.index < 0:
         app.index = 0
-    elif app.index > txsCount - app.txWidth:
-        app.index = txsCount - app.txWidth
-    if app.page == 4:
-        app.currTxs = app.humanUserTxs[app.userAddress][app.index: app.index + app.txWidth]
+    elif app.index > txsCount - txWidth:
+        app.index = txsCount - txWidth
+
+    # refresh our stored current txs, we can call moveIndex(app, 0) to do this function without moving index
+    if app.page == 3:
+        app.currPoolTxs = app.txsPool[app.index: app.index + app.txsPoolWidth]
+    elif app.page == 4:
+        app.currRecentTxs = app.humanUserTxs[app.userAddress][app.index: app.index + app.txWidth]
     elif app.page == 5:
-        app.currTxs = currBlockTxs[app.index: app.index + app.txWidth]
+        app.currBlockTxs = currBlockTxs[app.index: app.index + app.txWidth]
 
 # TODO fix list index out of range bug when < 3 blocks exist in chain 
 def viewKeyHandler(app, event): 
@@ -50,10 +67,14 @@ def viewKeyHandler(app, event):
         app.blockTxsIndex = 0
         moveIndex(app, 0)
     elif event.key == '2':
+        if len(app.chain.blocks) < 2:
+            return
         app.viewingBlockTxs = True
         app.blockTxsIndex = 1
         moveIndex(app, 0)
     elif event.key == "3":
+        if len(app.chain.blocks) < 3:
+            return
         app.viewingBlockTxs = True
         app.blockTxsIndex = 2
         moveIndex(app, 0)
@@ -73,8 +94,8 @@ def moveBlockIndex(app, Dir):
     maxViewable = min(app.blockWidth, blockCount)
     app.blockIndex += Dir
     if app.blockWidth > maxViewable:
-        app.blockIndex += Dir
-    if app.blockIndex < 0:
+        app.blockIndex = 0 # we dont have enough blocks to fill screen, so dont move index
+    elif app.blockIndex < 0:
         app.blockIndex = 0
     elif app.blockIndex > blockCount - app.blockWidth:
         app.blockIndex = blockCount - app.blockWidth

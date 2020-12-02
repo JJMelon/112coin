@@ -10,12 +10,20 @@ from ecdsa import SigningKey as PrivKey, NIST192p, VerifyingKey as PubKey
 # database interactions
 from database import *
 
-# so we dont have global vars
+# paramaters
+# userful parameters to mess with
 class Params(object):
     MINT_TIME = 13 #in sec
-    MAX_TXS = 100
+    MINT_REWARD = 1 # amount of coin generated from the coinbase for minting a block when blockchain first starts
     TX_FEE = 0.01
+    STAKE_DURATION = 20 # duration in sec of a stake before it is returned
     CURVE = NIST192p
+    MIN_TXS = 0 # per timerFired
+    MAX_TXS = 20 # per timerFired
+    MAX_AMT = 100 # max tx amount one can send
+    MIN_AMT = 0.01 # minimum denomination, (1 kos)
+    A, B = 2, 0.3 # alpha and beta values for our gamma distribution of tx amts 
+    BADSIG_CHANCE = 0.05 # chance of a randomly generated tx having a bad signature
 
 # returns hash of the concatination of the two inputs when they are hashed
 def hash2(a, b):
@@ -24,14 +32,20 @@ def hash2(a, b):
     concat = ahash+bhash
     return sha256(concat.encode()).hexdigest()
 
+#################################################################
+#                  OBJECT CREATION FROM JSON
+#################################################################
+
 # returns the blockchain object containing all the data about blocks in the chain database
 def loadChain():
-    B = BlockChain()
     blockList = fetchChain()
-    # replace first default genesis block with correct block
-    B.blocks[0] = blockList[0]
+    genesis = blockList[0]
+    # our genesis block
+    B = BlockChain(genesis)
+
+    # add the rest of our blocks
     for block in blockList[1:]:
-        B.addBlock(block)
+        B.addBlock(block, init=True) # we are initializing, so don't insert block into database again
     return B
 
 # returns a list of block objects for all blocks in a db
@@ -44,6 +58,23 @@ def fetchChain():
         block = Block.blockFromJSON(d)
         blocks.append(block)
     return blocks
+
+def loadHumanUsers():
+    users = []
+    for userTxt in fetchHumanUsers():
+        d = json.loads(userTxt[0])
+        userObj = User.userFromJSON(d)
+        users.append(userObj)
+    return users
+
+def loadCompUsers():
+    users = []
+    for userTxt in fetchCompUsers():
+        d = json.loads(userTxt[0])
+        userObj = User.userFromJSON(d)
+        users.append(userObj)
+    return users
+
 
 
 # Tx objects are created by a User object by default, but can be created from values when deserializing
@@ -133,11 +164,14 @@ class User(object):
     # returns True if signature is correct for given message and public key, sig as hex object
     @staticmethod
     def verify(sig, msg, pubk): # takes pubk, sig, msg as strings
-        sig = bytearray.fromhex(sig)
-        pubk = bytearray.fromhex(pubk)
-        key = PubKey.from_string(pubk, curve=Params.CURVE) # ecdsa key PubKey object
-        return key.verify(sig, msg.encode()) # key.verify takes in sig as bytearray, msg as bytes object of string
-
+        try:
+            sig = bytearray.fromhex(sig)
+            pubk = bytearray.fromhex(pubk)
+            key = PubKey.from_string(pubk, curve=Params.CURVE) # ecdsa key PubKey object
+            return key.verify(sig, msg.encode()) # key.verify takes in sig as bytearray, msg as bytes object of string
+        except: # this means either signature was not a hexadecimal or it was in hex, but still invalid
+            return False
+        
     # returns transaction object with user as sender
     def send(self, receiver, amt): # receiver is a hex string of their ecdsa pubkey object to_string() compression format
         date = time.time()
@@ -157,6 +191,18 @@ class User(object):
         pubk = PubKey.from_string(bytearray.fromhex(pubkeyString), curve=Params.CURVE)
         privk = PrivKey.from_string(bytearray.fromhex(privkeyString), curve=Params.CURVE)
         return User(fromValues=True, values=(pubk, privk))
+
+    # returns a transaction from the coinbase to a user, with receiver input as a hex string of their pubk
+    @staticmethod
+    def userReward(receiver, randomAmt=True, amount=None):
+        sender = 'coinbase'
+        amt = round(random.uniform(0.5,10), 2) #smallest unit of currency is a kos or 0.01 112C
+        if not randomAmt:
+            amt = amount
+        date = time.time()
+        Hash = Tx.msgHash(sender, receiver, amt, date)
+        tx = Tx(None, receiver, amt, date, fromValues=True, values=(None, None, Hash))
+        return tx
 
 class Block(object):
     #takes in txs as list of transactions in this block
@@ -231,11 +277,15 @@ class Block(object):
     def getHash(self):
         return sha256(json.dumps(self.blockSerialize()).encode()).hexdigest()
     
-    #returns the list of txs that contain correct signatures and where sender has sufficient funds
-    def validTxs(self):
+    # returns only the valid txs that contain correct signatures and where sender has sufficient funds
+    # for the given BlockChain object
+    def validTxs(txs, chain):
+        if txs == []:
+            return []
         result = []
-        for tx in self.txs:
-            if BlockChain.validSignature(tx) and BlockChain.sufficientBalance(tx):
+        for txIndex in range(len(txs)):
+            tx = txs[txIndex]
+            if chain.validSignature(tx) and chain.sufficientBalance(txs, txIndex):
                 result.append(tx)
         return result
     
@@ -245,6 +295,12 @@ class Block(object):
         for tx in self.txs:
             hashes.append(tx.hash)
         return hashes
+    
+    # TODO implement dynamic Tx Fees that are optional to pay, but this increases chance a tx will not be validated
+    # sums the fees from all of the txs 
+    @staticmethod
+    def totalReward(txs):
+        return len(txs)*Params.TX_FEE + Params.MINT_REWARD
 
 # Stores block objects, can add blocks to database, fetch certain blocks from database, and store pertinent info
 class BlockChain(object):
@@ -262,7 +318,7 @@ class BlockChain(object):
         # possibly implement other forks in a BlockChain, maybe 2D list?
 
     # once block is minted, it *should* be validated correctly and we can update balances from the block txs
-    def addBlock(self, block):
+    def addBlock(self, block, init=False):
         if (block.prevHash != self.blocks[-1].hash):
             cont = input("This block has an incorrect Previous Hash\nAre you sure you want to continue? ")
             if cont.upper() == "Y":
@@ -276,7 +332,9 @@ class BlockChain(object):
         self.blocks.append(block)
 
         # also add block to blocks table of chain.db so we can load it next time
-        insertBlock(block)
+        # only add if we are not building the initial chain in loadChain()
+        if not init:
+            insertBlock(block)
     
     # updates the balance of each minter and user in their respective dictionaries
     # def updateBalances(self, block): (NOTE might be better to only verify balance of one user at a time when they spend coin )
@@ -285,12 +343,14 @@ class BlockChain(object):
     # we randomally select a winner from weighted distribution of validators (based on their current stake)
     def lottery(self):
         # create weighted list from validators and stakes
-         validators = list(self.validators.keys())
-         weights = []
-         for validator in self.validators:
-             weights.append(self.validators[validator][0])
-         weightedList = random.choices(validators, weights)
-         return random.choice(weightedList)
+        print("Choosing a Minter...", end='')
+        validators = list(self.validators.keys())
+        weights = []
+        for validator in self.validators:
+            weights.append(self.validators[validator][0])
+        weightedList = random.choices(validators, weights)
+        minter = random.choice(weightedList)
+        return minter
 
     # verifies the signature of a tx is valid using DSA signature verification algorithm
     @staticmethod
@@ -301,15 +361,15 @@ class BlockChain(object):
         return User.verify(sig, msg, pubKey)
 
     # verifies that the sender in a transaction has the amount of coins they are sending
-    def sufficientBalance(self, block, tx):
-        # get the balance they have accumilated in this block, based on all previous txs
+    def sufficientBalance(self, txs, txIndex):
+        # get the balance they have accumilated in this txs list, based on all previous txs
         blockBalance = 0
-        for prevTx in block.txs:
-            if (prevTx.date < tx.date):
-                if (prevTx.senderKey == tx.senderKey):
-                    blockBalance -= prevTx.amt
-                if (prevTx.receiver == tx.senderKey):
-                    blockBalance += prevTx.amt
+        tx = txs[txIndex]
+        for prevTx in txs[0:txIndex]: # we assume the txs are in chronological order, so we only check txs at the prior indices
+            if (prevTx.senderKey == tx.senderKey):
+                blockBalance -= (prevTx.amt + Params.TX_FEE) # account for fee
+            if (prevTx.receiver == tx.senderKey):
+                blockBalance += prevTx.amt
 
         currBalance = self.accounts[tx.senderKey] + blockBalance
         if tx.amt > currBalance:
@@ -320,20 +380,59 @@ class BlockChain(object):
     # will update the current balances of all users based on txs in this confirmed block
     def updateBalances(self, block):
         for tx in block.txs:
-            self.accounts[tx.senderKey] = self.accounts.get(tx.senderKey, 0) - tx.amt
+            self.accounts[tx.senderKey] = self.accounts.get(tx.senderKey, 0) - (tx.amt + Params.TX_FEE)
             self.accounts[tx.receiver] = self.accounts.get(tx.receiver, 0) + tx.amt
 
     # stake an amount of coins at the time of the function call
     def addStake(self, validator, amt):
-        if amt > self.accounts[validator]:
-            print("Stake too high!")
+
+        # if they do not have enough coin to stake, or already have a stake, then we do nothing
+        if (amt > self.accounts[validator]) or (validator in self.validators):
             return
-        self.validators[validator] = self.validators.get(validator, 0) + amt
-        self.staked += amt
+        else:
+            self.validators[validator] = (amt, time.time()) 
+            
+            # remove coin from account balance
+            self.accounts[validator] = round(self.accounts[validator] - amt, 2)
+        self.staked = round(self.staked + amt, 2)
     
     def removeStake(self, validator):
-        self.staked -= self.validators[validator]
-        self.validators.remove(validator)
+        amt = self.validators[validator][0]
+        self.staked = round(self.staked - amt, 2)
+        self.validators.pop(validator)
+        
+        # add coin back to account balance as spendable
+        self.accounts[validator] = round(self.accounts[validator] + amt, 2)
+        print(f"Rewarded {validator} {amt} (112C)")
+    
+    # take all of the given transactions and create a block with only valid txs with the given minter
+    def mint(self, txs, minter):
+        try:
+            # get list of validTxs
+            validTxs = Block.validTxs(txs, self)
+
+            # reward calculation and Tx generation
+            reward = round(Block.totalReward(txs), 2)
+            rewardTx = User.userReward(minter, randomAmt=False, amount=reward)
+            validTxs.insert(0, rewardTx) # insert reward Tx at the front
+
+            # block creation and adding
+            prevHash = self.blocks[-1].hash
+            block = Block(validTxs, prevHash, minter)
+            self.addBlock(block)
+
+            print("Mint Successful, added Block with %d Transactions"%len(validTxs))
+        except Exception as error:
+            print(error, "Mint Failed!") # TODO fix error when non-hexidecimal signature is given for a tx
+
+    # remove all stakes and give coin back to validator when their stake time is up
+    def updateStakes(self):
+        validatorsCopy = dict(self.validators) # copy so we don't change the iteratation bounds
+        for validator in validatorsCopy:
+            startTime = self.validators[validator][1]
+            # this user's stake is up, so remove their stake
+            if time.time() > (startTime + Params.STAKE_DURATION):
+                self.removeStake(validator)
 
 def testMyTxs(user):
     usersObjs = []
