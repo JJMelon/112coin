@@ -1,4 +1,5 @@
-import time
+import time, math
+from cmu_112_graphics import ImageTk
 
 
 # takes time in seconds since epoch and returns short version string MM/DD/YY-HH:MM:SS
@@ -35,34 +36,102 @@ def drawOverview(app, canvas):
                                             font='Arial 8', anchor='nw')
     canvas.create_text(leftMargin, app.topMargin + 4*topPad, text=f'Private Key: {app.currUser.rawPrivk}', 
                                             font='Arial 8', anchor='nw')
+    
     canvas.create_text(app.width/2, app.topMargin + 6*topPad, text='Your Stake',
              font='Arial 18 bold')
+    imgSize = app.coinImg.size[0]
+    canvas.create_image(boxX0-imgSize, (boxY0 + boxY1)/2, image=ImageTk.PhotoImage(app.coinImg))
+    canvas.create_image(boxX1+imgSize, (boxY0 + boxY1)/2, image=ImageTk.PhotoImage(app.coinImg))
     canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width=2)
     amt, startTime = app.chain.validators.get(app.userAddress, (None, None))
+
     
     # if we are a validator and have an active stake
     if startTime != None:
         timeLeft = (startTime + app.stakeDuration) - time.time()
         Text = 'Amt: %0.2f | Time Left: %ds' % (amt, timeLeft)
+        color = 'darkGreen'
     else:
         Text = 'No Active Stake!'
+        amt = 0
+        color='red'
+
     canvas.create_text((boxX1+boxX0)/2, (boxY1+boxY0)/2, text=Text,
             font='Arial 12 bold')
 
+    canvas.create_text(app.width/2, boxY1 + topPad, text='Press s to stake coin!',
+             font='Arial 18 bold')
+
+    # your share of total
+    gap = 25
+    txt1X0 = app.width/2 + 125
+    canvas.create_text(txt1X0, app.height-3*topPad, text='Your Share of Staked Coin:',
+            font='Arial 18 bold', anchor='e')
+    percent = round(amt/app.chain.staked*100, 2)
+    canvas.create_text(txt1X0 + gap, app.height-3*topPad, text=f'{percent}%',
+            font='Arial 18 bold', fill=color, anchor='w')
+
+
+
+
 def drawSend(app, canvas):
-    pass
+    topPad = 10
+    canvas.create_text(app.width/2, app.topMargin + topPad, text="Send coin to a user's address.",
+             font='Arial 18 bold', anchor='n')
+    
+    # button to enter receiver user address
+    B1X0, B1Y0, B1X1, B1Y1, text1 = app.sendButton1
+    color1 = app.sendButton1Color
+    canvas.create_rectangle(B1X0, B1Y0, B1X1, B1Y1, width=2, fill=color1)
+    canvas.create_text((B1X0+B1X1)/2,(B1Y0+B1Y1)/2, text=text1, font='Arial 12 bold', fill='gold')
+    # receiver userAddress field
+    canvas.create_text(B1X0, B1Y0-20, text=f'Receiver:',
+         font='Arial 14 bold', anchor='w')
+    canvas.create_text(B1X0 + 90, B1Y0-20, text=app.recAddress,
+         font='Arial 12', anchor='w')
+
+    # button to enter amt to send
+    color2 = app.sendButton2Color
+    B2X0, B2Y0, B2X1, B2Y1, text2 = app.sendButton2
+    canvas.create_rectangle(B2X0, B2Y0, B2X1, B2Y1, width=2, fill=color2)
+    canvas.create_text((B2X0+B2X1)/2,(B2Y0+B2Y1)/2, text=text2, font='Arial 12 bold', fill='gold')
+    # tx amount field
+    canvas.create_text(B2X0, B2Y0-20, text=f'Amount:', 
+        font='Arial 14 bold', anchor='w')
+    canvas.create_text(B2X0 + 80, B2Y0-20, text=app.sendAmount, 
+        font='Arial 12', anchor='w')
+
+    # button to confirm send transaction
+    color3 = app.sendButton3Color
+    B3X0, B3Y0, B3X1, B3Y1, text3 = app.sendButton3
+    canvas.create_rectangle(B3X0, B3Y0, B3X1, B3Y1, width=2, fill=color3)
+    canvas.create_text((B3X0+B3X1)/2,(B3Y0+B3Y1)/2, text=text3, 
+            font='Arial 12 bold', fill=app.dGold)
+
+    # balance info at bottom
+    canvas.create_text(app.width/2, app.height-100, text=f"Balance: {app.chain.accounts[app.userAddress]}", font='Arial 18 bold')
 
 # TODO show current block reward by summing tx fees for all txs in app.txsPool
 def drawMint(app, canvas):
     topPad = 20
-    colsX = drawTxColumns(app, canvas, app.topMargin + 3*topPad)
-    drawTxs(app, canvas, colsX, app.currPoolTxs, app.topMargin + app.topPad + 3*topPad)
-    
+    canvas.create_text(app.sideMargin, app.topMargin + 3*topPad/2, 
+        text='Transaction Pool', anchor='w', font='Arial 20 bold')
 
+    canvas.create_text(app.width - app.sideMargin - 110, app.topMargin + topPad, 
+        text='Current Block Reward: ', anchor='ne', font='Arial 16 bold')
+    canvas.create_text(app.width - app.sideMargin, app.topMargin + topPad, 
+        text=f'{app.currReward} (112C)', anchor='ne', font='Arial 16 bold', fill=app.dGold)
+    colsX = drawTxColumns(app, canvas, app.topMargin + 3*topPad)
+    if len(app.txsPool) == 0:
+        canvas.create_image(app.width/2, 2*app.height/3, image=ImageTk.PhotoImage(app.emptyImg))
+        canvas.create_text(app.width/2, app.topMargin + 6*topPad, text="No Pending Transactions",
+            font='Arial 24 bold', fill=app.grey)
+    else:
+        drawTxs(app, canvas, colsX, app.currPoolTxs, app.topMargin + app.topPad + 3*topPad)
+    
 def drawRecent(app, canvas):
     colsX = drawMyTxColumns(app, canvas)
-    currUserTxs = app.humanUserTxs[app.userAddress]
-    drawTxs(app, canvas, colsX, currUserTxs, app.topMargin + app.topPad, myTxs=True)
+    drawTxs(app, canvas, colsX, app.currRecentTxs, app.topMargin + app.topPad, myTxs=True)
 
 def drawMyTxColumns(app, canvas):
     topPad = 20

@@ -1,5 +1,7 @@
 # cmu_112_graphics.py
-# version 0.8.6
+# version 0.8.6 
+
+# 112Coin specific addition is a specifiable messageBox window name and copy to clipboard
 
 # Pre-release for CMU 15-112-f20
 
@@ -281,6 +283,10 @@ class App(object):
 
     def showMessage(app, title, message):
         messagebox.showinfo(title, message, parent=app._root)
+
+    def copy2Clip(app, txt):
+        app._root.clipboard_clear()
+        app._root.clipboard_append(txt)
 
     def getUserInput(app, prompt):
         return simpledialog.askstring('getUserInput', prompt)

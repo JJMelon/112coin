@@ -1,20 +1,13 @@
 # Alexander Penney 2020 
-
-import sqlite3, json
-import time, random, linecache
-from dataclasses import make_dataclass
-from cmu_112_graphics import *
+import time, random, linecache, os, json
 from hashlib import sha256
-import os
 
-# blockchain functions
-from blockchain import *
+import sqlite3
 
-# keyPress and mousePress handlers:
-from handlers import *
-
-# page drawers
-from draw import *
+from cmu_112_graphics import *
+from blockchain import *  # blockchain functions
+from handlers import * # keyPress and mousePress handlers:
+from draw import * # page drawers
 
 ''' --- page number guide --- 
        0: Tutorial
@@ -28,13 +21,20 @@ from draw import *
 def loadDatabaseData(app):
     dbExists = os.path.exists('chain.db')
     if dbExists:
+        print("Loading data from chain.db...", end='')
         app.humanUsers = loadHumanUsers()
         app.currUser = app.humanUsers[0]
         app.userAddress = app.currUser.rawPubk
         app.compUsers = loadCompUsers()
         app.chain = loadChain()
         initHumanUserTxsList(app)
+        print("Done!")
     else:
+        print('''
+----------------------------------------------------------
+                   Welcome to 112Coin! 
+              Initializing First Time Setup:
+----------------------------------------------------------''')
         # make our database and its tables
         makeTable('compusers', blocks=False)
         makeTable('humanusers', blocks=False)
@@ -50,10 +50,12 @@ def loadDatabaseData(app):
         app.humanUserTxs = {app.userAddress:myTxs(app, app.currUser)} # stores the tx lists for each human user, so we can quickly load them when switching users
 
         # store these generated data in our database 
+        print("Initializing Default Data in chain.db...", end='')
         insertBlock(app.chain.blocks[0])
         insertHumanUser(app.currUser)
         for user in app.compUsers:
             insertCompUser(user)
+        print('Done!')
         
 
 # give each user in app.compUsers a random amount of starting money by creating transactions from the coinbase
@@ -65,7 +67,7 @@ def populateBalances(app):
         txs.append(tx)
     
     # reward original humanuser is 10 112C
-    txs.append(User.userReward(app.userAddress, randomAmt=False, amount=10))
+    txs.append(User.userReward(app.userAddress, randomAmt=False, amount=10.00))
     block = Block(txs, None, 'God') # create our genesis block
     return block
 
@@ -108,7 +110,6 @@ def generateTxs(app):
         app.txsPool.append(tx)
     
     app.currPoolTxs = app.txsPool[app.index: app.index + app.txsPoolWidth]
-    print(f'Generated {numTxs} transactions!')
 
 # returns list of txs from the chain that involve given user
 def myTxs(app, user):
@@ -128,19 +129,26 @@ def appStarted(app):
     app.pages = ['Tutorial', 'Overview', 'Send', 'Mint', 'Recent', 'View Chain']
     app.timerDelay = 1000
     app.generating = False # start not generating txs, press to g to begin
-    app.count = 0
+    app.count = 0 # internal timer for validator simulation
+    loadImages(app)
+    loadColors(app)
     # list of pending transactions in memory
     app.txsPool = []
 
     # load Human User, Computer User, and Block Data
     loadDatabaseData(app)
 
-    # TEST set our initial validators as all users in comp users and the initial human user
+    # TEST set our initial validators as a random selection of comp users
     setValidators(app)
 
     # initialize overview page details
-    app.currReward = Block.totalReward(app.txsPool)
     app.stakeDuration = Params.STAKE_DURATION
+    # ---------------------------------------
+    #       SPECIFIC PAGE DETAILS
+    # ---------------------------------------
+
+    # send page 
+    resetSendPage(app)
 
     # initialize recent page details
     app.index = 0 # starting index in app.myTxs, will show this tx and following 9 txs
@@ -179,6 +187,46 @@ def resetMintPage(app):
     app.index = 0
     maxPoolViewable = min(app.txsPoolWidth, len(app.txsPool))
     app.currPoolTxs = app.txsPool[0:maxPoolViewable]
+    app.currReward = Block.totalReward(app.txsPool)
+
+def resetSendPage(app):
+    # coords of box for send button to enter user 
+    Btn1W, Btn1H = 75, 75
+    btn1Y = 100
+    btnX = 40
+    Btn1X0, Btn1Y0 = app.sideMargin + btnX, app.topMargin + btn1Y
+    text1 = '  Enter\nAddress'
+    app.sendButton1 = (Btn1X0, Btn1Y0, Btn1X0 + Btn1W, Btn1Y0 + Btn1H, text1)
+    app.sendButton1Color = 'white'
+    # receiver user address field
+    app.recAddress = ''
+
+    # coords of box for send button to enter amount
+    text2 = '  Enter\nAmount'
+    Btn2W, Btn2H = 75, 75
+    Btn2X0, Btn2Y0 = app.sideMargin + btnX, Btn1Y0 + Btn1H + 30
+    app.sendButton2 = (Btn2X0, Btn2Y0, Btn2X0 + Btn2W, Btn2Y0 + Btn2H, text2)
+    app.sendButton2Color = 'white'
+    # amount field
+    app.sendAmount = ''
+
+    # coords of box to confirm the send transaction
+    text3 = 'Confirm Transaction'
+    Btn3W, Btn3H = 200, 75
+    Btn3X0, Btn3Y0 = app.width/2-Btn3W/2, app.height-200
+    app.sendButton3 = (Btn3X0, Btn3Y0, Btn3X0 + Btn3W, Btn3Y0 + Btn3H, text3)
+    app.sendButton3Color = 'white'
+
+
+def loadImages(app):
+    app.coinImg = app.loadImage('media/Coin.png')
+    app.coinImg = app.scaleImage(app.coinImg, 1/5)
+    app.emptyImg = app.loadImage('media/empty.png')
+    app.emptyImg = app.scaleImage(app.emptyImg, 7/9)
+
+def loadColors(app):
+    app.dGold = '#c3ad34'
+    app.grey='#7e7e7e'
 
 def timerFired(app):
     app.count += 1
@@ -189,6 +237,7 @@ def timerFired(app):
         mintBlock(app)
     if app.generating:
         generateTxs(app)
+    app.currReward = Block.totalReward(app.txsPool)
 
 def mintBlock(app):
     minter = app.chain.lottery()
@@ -202,12 +251,14 @@ Minter will now process {len(app.txsPool)} transctions...'''
     print('')
     app.txsPool = [] # reset pool to empty 
     app.currTxsPool = [] 
+    resetMintPage(app)
+    updateUserTxs(app, app.chain.blocks[-1]) # updates app.humanUserTxs dict with txs in this block involving human users
     moveBlockIndex(app, 0) # refresh our current blocks to update with newly created
 
 # choose some random users to stake, make sure they aren't already staked
 def randomStakes(app):
-    numStake = 10
-    amt = 0.1
+    numStake = 60//Params.STAKE_DURATION
+    amt = random.randint(1,20)
     n = 0
     while n < numStake:
         accounts = list(app.chain.accounts.keys())
@@ -218,16 +269,29 @@ def randomStakes(app):
             app.chain.addStake(userAddress, amt)
             n += 1
 
+# adds any txs involving a human user to the corresponding value list in app.humanUserTxs
+def updateUserTxs(app, block):
+    for tx in block.txs:
+        # check each humanUser
+        for address in app.humanUserTxs:
+            if (tx.senderKey == address) or (tx.receiver == address):
+                app.humanUserTxs[address] = app.humanUserTxs[address] + [tx]
+    currUserTxs = app.humanUserTxs[app.userAddress]
+    maxRecentViewable = min(app.txWidth, len(currUserTxs))
+    app.currRecentTxs = currUserTxs[0:maxRecentViewable] # currently viewable transactions
+
+# initially randomly chooses a quarter of compusers to stake, simulating an active crypto eco-system
 def setValidators(app):
-    amt = 0.1
+    amt = 5
     for user in app.chain.accounts:
         # don't add if its our user
-        if user == app.userAddress: pass
+        if user == app.userAddress:
+            continue
 
-        # only stake half of our users
-        if random.randint(0, 1) == 1: pass
-        app.chain.addStake(user, amt)
-    app.chain.addStake(app.userAddress, 0.5) # stake the human user by default 5 112C
+        # only stake around 10 of our users
+        pValue = 10/len(app.chain.accounts)
+        if random.random() < pValue:
+            app.chain.addStake(user, amt)
 
 def pageHandler(app, event):
     if event.key == "Right":
@@ -278,6 +342,10 @@ def mousePressed(app, event):
         recentClickHandler(app, event)
     elif app.page == 5:
         viewClickHandler(app, event)
+
+def mouseMoved(app, event):
+    if app.page == 2:
+        sendMouseHandler(app, event)
 
 def redrawAll(app, canvas):
     drawNavbar(app, canvas)

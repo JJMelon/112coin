@@ -16,7 +16,7 @@ class Params(object):
     MINT_TIME = 13 #in sec
     MINT_REWARD = 1 # amount of coin generated from the coinbase for minting a block when blockchain first starts
     TX_FEE = 0.01
-    STAKE_DURATION = 20 # duration in sec of a stake before it is returned
+    STAKE_DURATION = 60 # duration in sec of a stake before it is returned
     CURVE = NIST192p
     MIN_TXS = 0 # per timerFired
     MAX_TXS = 20 # per timerFired
@@ -201,7 +201,7 @@ class User(object):
             amt = amount
         date = time.time()
         Hash = Tx.msgHash(sender, receiver, amt, date)
-        tx = Tx(None, receiver, amt, date, fromValues=True, values=(None, None, Hash))
+        tx = Tx(None, receiver, amt, date, fromValues=True, values=(sender, None, Hash))
         return tx
 
 class Block(object):
@@ -300,7 +300,7 @@ class Block(object):
     # sums the fees from all of the txs 
     @staticmethod
     def totalReward(txs):
-        return len(txs)*Params.TX_FEE + Params.MINT_REWARD
+        return round(len(txs)*Params.TX_FEE + Params.MINT_REWARD,2)
 
 # Stores block objects, can add blocks to database, fetch certain blocks from database, and store pertinent info
 class BlockChain(object):
@@ -365,6 +365,7 @@ class BlockChain(object):
         # get the balance they have accumilated in this txs list, based on all previous txs
         blockBalance = 0
         tx = txs[txIndex]
+        totalTxAmt = tx.amt + Params.TX_FEE
         for prevTx in txs[0:txIndex]: # we assume the txs are in chronological order, so we only check txs at the prior indices
             if (prevTx.senderKey == tx.senderKey):
                 blockBalance -= (prevTx.amt + Params.TX_FEE) # account for fee
@@ -372,7 +373,9 @@ class BlockChain(object):
                 blockBalance += prevTx.amt
 
         currBalance = self.accounts[tx.senderKey] + blockBalance
-        if tx.amt > currBalance:
+        if tx.senderKey == loadHumanUsers()[0].rawPubk:
+            print(currBalance, tx.amt)
+        if totalTxAmt > currBalance:
             return False
         else:
             return True
@@ -380,21 +383,26 @@ class BlockChain(object):
     # will update the current balances of all users based on txs in this confirmed block
     def updateBalances(self, block):
         for tx in block.txs:
-            self.accounts[tx.senderKey] = self.accounts.get(tx.senderKey, 0) - (tx.amt + Params.TX_FEE)
-            self.accounts[tx.receiver] = self.accounts.get(tx.receiver, 0) + tx.amt
+            if tx.receiver != 'coinbase':
+                self.accounts[tx.receiver] = round(self.accounts.get(tx.receiver, 0) + tx.amt, 2)
+            elif tx.senderKey != 'coinbase':
+                self.accounts[tx.senderKey] = round(self.accounts.get(tx.senderKey, 0) - (tx.amt + Params.TX_FEE), 2)
 
     # stake an amount of coins at the time of the function call
     def addStake(self, validator, amt):
 
         # if they do not have enough coin to stake, or already have a stake, then we do nothing
-        if (amt > self.accounts[validator]) or (validator in self.validators):
-            return
+        if (amt > self.accounts[validator]):
+            return "Insufficient Balance!"
+        elif (validator in self.validators):
+            return "Already Staked!"
         else:
             self.validators[validator] = (amt, time.time()) 
             
             # remove coin from account balance
             self.accounts[validator] = round(self.accounts[validator] - amt, 2)
-        self.staked = round(self.staked + amt, 2)
+            self.staked = round(self.staked + amt, 2)
+            return f"Staked {amt} 112C!"
     
     def removeStake(self, validator):
         amt = self.validators[validator][0]
@@ -403,7 +411,6 @@ class BlockChain(object):
         
         # add coin back to account balance as spendable
         self.accounts[validator] = round(self.accounts[validator] + amt, 2)
-        print(f"Rewarded {validator} {amt} (112C)")
     
     # take all of the given transactions and create a block with only valid txs with the given minter
     def mint(self, txs, minter):
@@ -412,7 +419,7 @@ class BlockChain(object):
             validTxs = Block.validTxs(txs, self)
 
             # reward calculation and Tx generation
-            reward = round(Block.totalReward(txs), 2)
+            reward = round(Block.totalReward(validTxs), 2)
             rewardTx = User.userReward(minter, randomAmt=False, amount=reward)
             validTxs.insert(0, rewardTx) # insert reward Tx at the front
 
@@ -420,8 +427,9 @@ class BlockChain(object):
             prevHash = self.blocks[-1].hash
             block = Block(validTxs, prevHash, minter)
             self.addBlock(block)
-
-            print("Mint Successful, added Block with %d Transactions"%len(validTxs))
+            good, bad = len(validTxs) - 1, len(txs) - (len(validTxs)-1) # don't count coinbase reward
+            successTxt = "Mint Successful, added Block with %d accepted and %d rejected Transactions"%(good, bad)
+            print(successTxt)
         except Exception as error:
             print(error, "Mint Failed!") # TODO fix error when non-hexidecimal signature is given for a tx
 
@@ -434,71 +442,12 @@ class BlockChain(object):
             if time.time() > (startTime + Params.STAKE_DURATION):
                 self.removeStake(validator)
 
-def testMyTxs(user):
-    usersObjs = []
-    txs = []
-    # create user objects list
-    for i in range(10):
-        usersObjs.append(User())
-
-    # 10 random txs involving app.user, either send or receive
-    for i in range(20):
-        send = random.randint(0,1)
-        amt = random.randint(0,20)
-        if send:
-            receiver = random.choice(usersObjs).pubk.to_string().hex()
-            tx = user.send(receiver, amt)
-        else:
-            sender = random.choice(usersObjs) # hex representation of compressed user PubKey object
-            receiver = user.pubk.to_string().hex()
-            tx = sender.send(receiver, amt)
-        txs.append(tx)
-    return txs
-
-def testUserObjTxs():
-    usersObjs = []
-    txs = []
-    # create user objects list
-    for i in range(20):
-        usersObjs.append(User())
-
-    # each user sends to a random receiver, not themselves
-    for user in usersObjs:
-        while True:
-            receiver = random.choice(usersObjs).pubk.to_string().hex() # hex representation of compressed user PubKey object
-            if receiver != user.pubk.to_string().hex(): break
-        amt = random.randint(0,20)
-        tx = user.send(receiver, amt)
-        txs.append(tx)
-    return txs
-
 def compUsers():
     users = []
     # create user objects list
     for i in range(20):
         users.append(User())
     return users
-
-def testValidators():
-    L = [(f'billy{i}',random.randint(1,50), i) for i in range(30)] + [('alby', 1000, 1)]
-    d = {}
-    for name, stake, time in L:
-        d[name] = (stake, time)
-    return d
-
-def testBlocks():
-    b = Block(testUserObjTxs(), '0', 'Alby')
-    b2 = Block(testUserObjTxs(), b.hash, 'Alby')
-    b3 = Block(testUserObjTxs(), b2.hash, 'Alby')
-    b4 = Block(testUserObjTxs(), b3.hash, 'Alby')
-    return [b,b2,b3,b4]
-
-
-me = User()
-
-
-# B.validators = testValidators()
-# insertBlock(b)
 
 
 

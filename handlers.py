@@ -4,7 +4,12 @@ def tutorialKeyHandler(app, event):
     pass
 
 def overviewKeyHandler(app, event):
-    pass
+    if event.key == 's':
+        try:
+            stake = round(float(app.getUserInput("Enter stake amount: ")), 2)
+            return app.chain.addStake(app.userAddress, stake)
+        except Exception as error:
+            print(error)
 
 def sendKeyHandler(app, event):
     pass
@@ -115,7 +120,31 @@ def overviewClickHandler(app, event):
     pass
 
 def sendClickHandler(app, event):
-    pass
+    # button clicks 
+    B1X0, B1Y0, B1X1, B1Y1, text1 = app.sendButton1
+    B2X0, B2Y0, B2X1, B2Y1, text2 = app.sendButton2
+    B3X0, B3Y0, B3X1, B3Y1, text3 = app.sendButton3
+    inButton1 = (B1X0 <= event.x <= B1X1) and (B1Y0 <= event.y <= B1Y1)
+    inButton2 = (B2X0 <= event.x <= B2X1) and (B2Y0 <= event.y <= B2Y1)
+    inButton3 = (B3X0 <= event.x <= B3X1) and (B3Y0 <= event.y <= B3Y1)
+    if inButton1:
+        app.recAddress = app.getUserInput("Receiver Address:")
+    elif inButton2:
+        app.sendAmount = app.getUserInput("Enter an amount:")
+    elif inButton3:
+        receiver = app.recAddress
+        try:
+            amt = round(float(app.sendAmount), 2)
+            app.txsPool.append(app.currUser.send(receiver, amt))
+            app.showMessage('Send Message', 'Transaction Sent to Pool!')
+            
+            # refresh our mint page if we are on it
+            app.index = 0
+            maxPoolViewable = min(app.txsPoolWidth, len(app.txsPool))
+            app.currPoolTxs = app.txsPool[0:maxPoolViewable]
+        except Exception as error:
+            print(error)
+            app.showMessage('Send Error', 'Please enter a number!')
 
 def mintClickHandler(app, event):
     pass
@@ -136,3 +165,25 @@ def viewClickHandler(app, event):
             moveBlockIndex(app, -1)
         elif event.x > app.width - 3*app.sideMargin:
             moveBlockIndex(app, +1)
+
+def sendMouseHandler(app, event):
+    B1X0, B1Y0, B1X1, B1Y1, text1 = app.sendButton1
+    B2X0, B2Y0, B2X1, B2Y1, text2 = app.sendButton2
+    B3X0, B3Y0, B3X1, B3Y1, text3 = app.sendButton3
+    inButton1 = (B1X0 <= event.x <= B1X1) and (B1Y0 <= event.y <= B1Y1)
+    inButton2 = (B2X0 <= event.x <= B2X1) and (B2Y0 <= event.y <= B2Y1)
+    inButton3 = (B3X0 <= event.x <= B3X1) and (B3Y0 <= event.y <= B3Y1)
+    if app.sendButton1Color == 'white' and inButton1:
+        app.sendButton1Color = 'lightGrey'
+    elif app.sendButton1Color == 'lightGrey' and not inButton1:
+        app.sendButton1Color = 'white'
+    
+    elif app.sendButton2Color == 'white' and inButton2:
+        app.sendButton2Color = 'lightGrey'
+    elif app.sendButton2Color == 'lightGrey' and not inButton2:
+        app.sendButton2Color = 'white'
+
+    elif app.sendButton3Color == 'white' and inButton3:
+        app.sendButton3Color = 'lightGrey'
+    elif app.sendButton3Color == 'lightGrey' and not inButton3:
+        app.sendButton3Color = 'white'
