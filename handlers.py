@@ -147,20 +147,56 @@ def sendClickHandler(app, event):
             app.showMessage('Send Error', 'Please enter a number!')
 
 def mintClickHandler(app, event):
-    pass
+    txTableClickHandler(app, event)
 
 def recentClickHandler(app, event):
     txTableClickHandler(app, event)
 
 def txTableClickHandler(app, event):
-    txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth
-    txStart = app.topMargin + app.topPad
-    txEnd = app.height-app.topMargin
+    if app.page == 3:
+        topPad = 60 # extra space given on mintPage
+        txWidth = app.txsPoolWidth
+        txStart = app.topMargin + app.topPad + topPad
+        txBoxHeight = (app.height - (2*app.topMargin + topPad))//txWidth
+        txEnd = app.height-app.topMargin
+    else:
+        txWidth = app.txWidth
+        txBoxHeight = (app.height - 2*app.topMargin)//txWidth
+        txStart = app.topMargin + app.topPad
+        txEnd = app.height-app.topMargin
+
+    # we are inside a transaction box
     if (event.y > txStart) and (event.y < txStart + app.txWidth*txBoxHeight):
         box = math.floor((event.y - txStart)/txBoxHeight)
+        # select correct currTxs List
+        if app.page == 3:
+            txs = app.currPoolTxs
+        if app.page == 4:
+            txs = app.currRecentTxs
+        elif app.page == 5:
+            txs = app.currBlockTxs
+        
+        # ignore case when box # is more than len(txs)
+        if box >= len(txs):
+            return
+
+        # check if it's already selected, if so then load popup
+        if app.currTxBox == box:
+            tx = txs[box]
+            msg = f'{tx.senderKey[0:15]}... to {tx.receiver[0:15]}...\n{box}\nyay'
+            app.showMessage('Transaction', msg)
+        app.currTxBox = box
+    else:
+        app.currTxBox = -1 # if its -1 we don't highlight any of the boxes
+
+
+    
 
 def viewClickHandler(app, event):
-    if event.y > app.topMargin:
+    # load individual messageBox popup for specific tx clicked
+    if app.viewingBlockTxs:
+        txTableClickHandler(app, event)
+    elif event.y > app.topMargin:
         if event.x < app.sideMargin*3:
             moveBlockIndex(app, -1)
         elif event.x > app.width - 3*app.sideMargin:

@@ -17,13 +17,18 @@ class Params(object):
     MINT_REWARD = 1 # amount of coin generated from the coinbase for minting a block when blockchain first starts
     TX_FEE = 0.01
     STAKE_DURATION = 60 # duration in sec of a stake before it is returned
-    CURVE = NIST192p
+    CURVE = NIST192p # ecdsa algorithm curve
+    USERCOUNT = 50 # number of default starting compusers
+    MAXUSERS = 100 # maximimum number of compusers
+    VRATIO = 5 # target ratio of total accounts to validators in our simulation
     MIN_TXS = 0 # per timerFired
     MAX_TXS = 20 # per timerFired
     MAX_AMT = 100 # max tx amount one can send
     MIN_AMT = 0.01 # minimum denomination, (1 kos)
     A, B = 2, 0.3 # alpha and beta values for our gamma distribution of tx amts 
     BADSIG_CHANCE = 0.05 # chance of a randomly generated tx having a bad signature
+    CHEAT_CHANCE = 0.025 # chance of a minter adding their own txs or validating bad ones
+    GENUSER_CHANCE = 0.08 # chance of randomly adding a compuser to the app model
 
 # returns hash of the concatination of the two inputs when they are hashed
 def hash2(a, b):
@@ -219,7 +224,7 @@ class Block(object):
            self.merkleRoot, self.hash, self.time = values
         else:
             self.time = currTime 
-            self.merkleRoot = Block.merkle(self.hashList())
+            self.merkleRoot = Block.merkle(Block.hashList(self.txs))
             self.hash = self.getHash()
 
         self.rawString = self.blockSerialize(incHash=True)
@@ -289,10 +294,11 @@ class Block(object):
                 result.append(tx)
         return result
     
-    # returns list of hexcode hashes of all transactions in this block
-    def hashList(self):
+    # returns list of hexcode hashes of all transactions in given list
+    @staticmethod
+    def hashList(txs):
         hashes = []
-        for tx in self.txs:
+        for tx in txs:
             hashes.append(tx.hash)
         return hashes
     
@@ -372,9 +378,8 @@ class BlockChain(object):
             if (prevTx.receiver == tx.senderKey):
                 blockBalance += prevTx.amt
 
-        currBalance = self.accounts[tx.senderKey] + blockBalance
-        if tx.senderKey == loadHumanUsers()[0].rawPubk:
-            print(currBalance, tx.amt)
+        prevBalance = self.accounts.get(tx.senderKey, 0) # balance from previous block txs
+        currBalance = prevBalance + blockBalance
         if totalTxAmt > currBalance:
             return False
         else:
@@ -414,24 +419,68 @@ class BlockChain(object):
     
     # take all of the given transactions and create a block with only valid txs with the given minter
     def mint(self, txs, minter):
-        try:
+        # try:
+        # get list of validTxs
+        validTxs = Block.validTxs(txs, self)
+
+        # reward calculation and Tx generation
+        reward = round(Block.totalReward(validTxs), 2)
+        rewardTx = User.userReward(minter, randomAmt=False, amount=reward)
+        validTxs.insert(0, rewardTx) # insert reward Tx at the front
+
+        # block creation and adding
+        prevHash = self.blocks[-1].hash
+        block = Block(validTxs, prevHash, minter)
+        return block
+
+        # except Exception as error:
+        #     print(error)
+        #     print("Mint Failed!") # TODO fix error when non-hexidecimal signature is given for a tx
+
+    # cheatMint creates a 'bad block' in one of four randomly picked ways
+    def cheatMint(self, txs, minter):
+        cheatType = random.randint(1,4)
+        if cheatType == 1: # don't worry about validating txs
+            blockTxs = txs
+            # reward calculation and Tx generation
+            reward = round(Block.totalReward(blockTxs), 2)
+            rewardTx = User.userReward(minter, randomAmt=False, amount=reward)
+            blockTxs.insert(0, rewardTx) # insert reward Tx at the front
+            prevHash = self.blocks[-1].hash
+
+
+        elif cheatType == 2: # minter gives themselves a massive coinbase mint reward
+            # cheat reward Tx generation
+            blockTxs = Block.validTxs(txs, self)
+            rewardTx = User.userReward(minter, randomAmt=False, amount=1000)
+            blockTxs.insert(0, rewardTx) # insert cheat reward Tx at the front
+            prevHash = self.blocks[-1].hash
+
+        elif cheatType == 3: # minter adds an extra fake transaction at the end from human user to themselves
+            blockTxs = Block.validTxs(txs, self)
+            # reward calculation and Tx generation
+            reward = round(Block.totalReward(blockTxs), 2)
+            rewardTx = User.userReward(minter, randomAmt=False, amount=reward)
+            blockTxs.insert(0, rewardTx) # insert reward Tx at the front
+
+            # fake transaction from human
+            human = loadHumanUsers()[0]
+            stealTx = human.send(minter, 1000)
+            blockTxs.append(stealTx)
+            prevHash = self.blocks[-1].hash
+
+        elif cheatType == 4: # everything looks good, except the previous hash
             # get list of validTxs
-            validTxs = Block.validTxs(txs, self)
+            blockTxs = Block.validTxs(txs, self)
 
             # reward calculation and Tx generation
-            reward = round(Block.totalReward(validTxs), 2)
+            reward = round(Block.totalReward(blockTxs), 2)
             rewardTx = User.userReward(minter, randomAmt=False, amount=reward)
-            validTxs.insert(0, rewardTx) # insert reward Tx at the front
-
-            # block creation and adding
-            prevHash = self.blocks[-1].hash
-            block = Block(validTxs, prevHash, minter)
-            self.addBlock(block)
-            good, bad = len(validTxs) - 1, len(txs) - (len(validTxs)-1) # don't count coinbase reward
-            successTxt = "Mint Successful, added Block with %d accepted and %d rejected Transactions"%(good, bad)
-            print(successTxt)
-        except Exception as error:
-            print(error, "Mint Failed!") # TODO fix error when non-hexidecimal signature is given for a tx
+            blockTxs.insert(0, rewardTx) # insert reward Tx at the front
+            prevHash = "theyWillNeverSuspectThisOne!"
+        # block creation and adding
+        block = Block(blockTxs, prevHash, minter)
+        return block
 
     # remove all stakes and give coin back to validator when their stake time is up
     def updateStakes(self):
@@ -445,7 +494,7 @@ class BlockChain(object):
 def compUsers():
     users = []
     # create user objects list
-    for i in range(20):
+    for i in range(Params.USERCOUNT):
         users.append(User())
     return users
 

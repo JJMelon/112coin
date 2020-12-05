@@ -76,29 +76,38 @@ def drawOverview(app, canvas):
 
 def drawSend(app, canvas):
     topPad = 10
+    boxPad = 5
     canvas.create_text(app.width/2, app.topMargin + topPad, text="Send coin to a user's address.",
              font='Arial 18 bold', anchor='n')
     
     # button to enter receiver user address
     B1X0, B1Y0, B1X1, B1Y1, text1 = app.sendButton1
     color1 = app.sendButton1Color
-    canvas.create_rectangle(B1X0, B1Y0, B1X1, B1Y1, width=2, fill=color1)
-    canvas.create_text((B1X0+B1X1)/2,(B1Y0+B1Y1)/2, text=text1, font='Arial 12 bold', fill='gold')
+    canvas.create_rectangle(B1X0, B1Y0, B1X1, B1Y1, width=2, fill=color1, outline='gold')
+    canvas.create_text((B1X0+B1X1)/2,(B1Y0+B1Y1)/2, text=text1, font='Arial 12 bold', fill=app.dGold)
     # receiver userAddress field
-    canvas.create_text(B1X0, B1Y0-20, text=f'Receiver:',
-         font='Arial 14 bold', anchor='w')
-    canvas.create_text(B1X0 + 90, B1Y0-20, text=app.recAddress,
-         font='Arial 12', anchor='w')
+    boxHeight, boxWidth = 25, 400
+    boxX0, boxY0 = B1X0, B1Y0 - boxHeight - boxPad
+    boxX1, boxY1 = boxX0 + boxWidth, boxY0 + boxHeight
+    canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width='2')
+    canvas.create_text(boxX0 + boxPad, (boxY0 + boxY1)/2, text=f'Receiver:', 
+        font='Arial 14 bold', anchor='w')
+    canvas.create_text(boxX0 + 100, (boxY0 + boxY1)/2, text=app.recAddress, 
+        font='Arial 12', anchor='w')
 
     # button to enter amt to send
     color2 = app.sendButton2Color
     B2X0, B2Y0, B2X1, B2Y1, text2 = app.sendButton2
-    canvas.create_rectangle(B2X0, B2Y0, B2X1, B2Y1, width=2, fill=color2)
-    canvas.create_text((B2X0+B2X1)/2,(B2Y0+B2Y1)/2, text=text2, font='Arial 12 bold', fill='gold')
+    canvas.create_rectangle(B2X0, B2Y0, B2X1, B2Y1, width=2, fill=color2, outline='gold')
+    canvas.create_text((B2X0 + B2X1)/2,(B2Y0 + B2Y1)/2, text=text2, font='Arial 12 bold', fill=app.dGold)
     # tx amount field
-    canvas.create_text(B2X0, B2Y0-20, text=f'Amount:', 
+    boxHeight, boxWidth = 25, 150
+    boxX0, boxY0 = B2X0, B2Y0 - boxHeight - boxPad
+    boxX1, boxY1 = boxX0 + boxWidth, boxY0 + boxHeight
+    canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width='2')
+    canvas.create_text(boxX0 + boxPad, (boxY0 + boxY1)/2, text=f'Amount:', 
         font='Arial 14 bold', anchor='w')
-    canvas.create_text(B2X0 + 80, B2Y0-20, text=app.sendAmount, 
+    canvas.create_text(boxX0 + boxWidth-70, (boxY0 + boxY1)/2, text=app.sendAmount, 
         font='Arial 12', anchor='w')
 
     # button to confirm send transaction
@@ -110,6 +119,10 @@ def drawSend(app, canvas):
 
     # balance info at bottom
     canvas.create_text(app.width/2, app.height-100, text=f"Balance: {app.chain.accounts[app.userAddress]}", font='Arial 18 bold')
+
+    # tip
+    canvas.create_text(app.width/2, app.height-50, text='Try copying an address from the view pages!',
+            font='Arial 10', fill='darkGreen')
 
 # TODO show current block reward by summing tx fees for all txs in app.txsPool
 def drawMint(app, canvas):
@@ -164,6 +177,9 @@ def drawMyTxColumns(app, canvas):
 
     colsX = app.sideMargin, dateEnd, typeEnd, labelEnd
     canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
+    # tip
+    canvas.create_text(app.width-topPad/2, app.height-app.topMargin/2, text='Double Click a transaction to see more!',
+            font='Arial 10', fill='darkGreen', anchor='e')
     return colsX
 
 def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
@@ -202,6 +218,7 @@ def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
     # amount column
     canvas.create_text(amtX+pad, txtCy, text=(f'{amt} (112C)'), 
             font='Arial 8 bold', anchor='w')
+
 
 def drawView(app, canvas):
     # when user presses one of three keys (1,2,3) the transactions for that block are shown in a new draw page
@@ -310,6 +327,9 @@ def drawTxColumns(app, canvas, startY):
 
     colsX = app.sideMargin, dateEnd, sendEnd, recEnd
     canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
+    # tip
+    canvas.create_text(app.width-topPad/2, app.height-app.topMargin/2, text='Double Click a transaction to see more!',
+            font='Arial 10', fill='darkGreen', anchor='e')
     return colsX
 
 # txs viewer draw function for a block's transactions
@@ -333,7 +353,8 @@ def drawTxs(app, canvas, colsX, txs, startY, myTxs=False):
                 color = 'white'
             else:
                 color = 'lightGrey'
-
+        if i == app.currTxBox:
+            color = 'gold'
         tx = txs[i]
         x0, y0 = app.sideMargin, startY + i*txBoxHeight
         if myTxs:

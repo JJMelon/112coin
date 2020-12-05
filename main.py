@@ -17,6 +17,11 @@ from draw import * # page drawers
        4: Recent
        5: View BlockChain'''
 
+
+################################################################################
+#                           App Initialization
+################################################################################
+
 # we try to load the database data, if it's not available we create the database and tables
 def loadDatabaseData(app):
     dbExists = os.path.exists('chain.db')
@@ -43,7 +48,7 @@ def loadDatabaseData(app):
         # update app model
         app.humanUsers = [User()]
         app.currUser = app.humanUsers[0]
-        app.compUsers = compUsers()
+        app.compUsers = compUsers() # generate random computer users
         app.userAddress = app.currUser.rawPubk
         genesis = populateBalances(app) # create initial block giving money to users from coinbase
         app.chain = BlockChain(genesis)
@@ -71,7 +76,6 @@ def populateBalances(app):
     block = Block(txs, None, 'God') # create our genesis block
     return block
 
-
 # initializes dict of txs lists for each user in app.humanUsers
 def initHumanUserTxsList(app):
     usersTxs = {}
@@ -80,6 +84,26 @@ def initHumanUserTxsList(app):
         txs = myTxs(app, user)
         usersTxs[name] = txs
     app.humanUserTxs = usersTxs
+
+################################################################################
+#                          User Simulation
+################################################################################
+
+# small chance of adding a new user to compusers, coming in with a starting receive transaction of course
+def genUser(app):
+    pValue = random.random()
+    if len(app.compUsers) >= Params.MAXUSERS:
+        return
+    if pValue < Params.GENUSER_CHANCE:
+        newUser = User()
+        sender = random.choice(app.compUsers) # pick a sender
+        amt = round(random.uniform(2,5))
+        app.compUsers.append(newUser)
+        # create transction from a random compuser, like they bought coin for cash from another account
+        newTx = sender.send(newUser.rawPubk, amt)
+        app.txsPool.append(newTx)
+        print(f'New User: {newUser.rawPubk[0:10]}... has joined!')
+
 
 # adds some random txs to the app.txsPool list, some may be insufficient balance or invalid signature
 def generateTxs(app):
@@ -108,18 +132,48 @@ def generateTxs(app):
         else: # create tx using normal Ecdsa signature method
             tx = sender.send(receiver, amt)
         app.txsPool.append(tx)
+
+    txTextL = len(str(numTxs))
+    padText = '-'*(3-txTextL)
+    print(f'{numTxs} {padText} New Transactions!')
     
     app.currPoolTxs = app.txsPool[app.index: app.index + app.txsPoolWidth]
 
-# returns list of txs from the chain that involve given user
-def myTxs(app, user):
-    address = user.rawPubk
-    txs = []
-    for block in app.chain.blocks:
-        for tx in block.txs:
-            if tx.senderKey == address or tx.receiver == address:
-                txs.append(tx)
-    return txs
+# initially randomly chooses a quarter of compusers to stake, simulating an active crypto eco-system
+def setValidators(app):
+    amt = round(random.uniform(0.5, 8), 2)
+    for user in app.chain.accounts:
+        # don't add if its our user
+        if user == app.userAddress:
+            continue
+
+        # only stake a number of users according to the target ratio
+        pValue = (1 / Params.VRATIO)
+        if random.random() < pValue:
+            app.chain.addStake(user, amt)
+
+# choose some random users to stake, make sure they aren't already staked
+def randomStakes(app):
+    numStake = random.randint(0,3)
+    amt = random.uniform(1,20)
+    n = 0
+    while n < numStake:
+        accounts = list(app.chain.accounts)
+        userAddress = random.choice(accounts)
+        # case for when every account is a validator, we should just break and wait until some validators are removed
+        if len(app.chain.validators) >= (len(accounts)//Params.VRATIO):
+            break
+        elif (userAddress in app.chain.validators) or (userAddress == app.userAddress):
+            pass
+        else:
+            app.chain.addStake(userAddress, amt)
+            n += 1
+
+
+################################################################################
+#                           Top-Level App Funcions
+################################################################################
+
 
 def appStarted(app):
     app.txWidth = 15
@@ -128,12 +182,13 @@ def appStarted(app):
     app.page = 0
     app.pages = ['Tutorial', 'Overview', 'Send', 'Mint', 'Recent', 'View Chain']
     app.timerDelay = 1000
-    app.generating = False # start not generating txs, press to g to begin
+    app.generating = True # start generating transactions
     app.count = 0 # internal timer for validator simulation
     loadImages(app)
     loadColors(app)
     # list of pending transactions in memory
     app.txsPool = []
+    app.minting = False # used to prevent generating txs during mint process
 
     # load Human User, Computer User, and Block Data
     loadDatabaseData(app)
@@ -143,6 +198,7 @@ def appStarted(app):
 
     # initialize overview page details
     app.stakeDuration = Params.STAKE_DURATION
+
     # ---------------------------------------
     #       SPECIFIC PAGE DETAILS
     # ---------------------------------------
@@ -154,6 +210,7 @@ def appStarted(app):
     app.index = 0 # starting index in app.myTxs, will show this tx and following 9 txs
     app.txWidth = 10 # number of transactions viewable at a time for normal list pages (recent, block view)
     app.topPad = 20
+    app.currTxBox = -1
     resetRecentPage(app)
 
     # initialize block chain viewing page details
@@ -191,7 +248,7 @@ def resetMintPage(app):
 
 def resetSendPage(app):
     # coords of box for send button to enter user 
-    Btn1W, Btn1H = 75, 75
+    Btn1W, Btn1H = 75, 50
     btn1Y = 100
     btnX = 40
     Btn1X0, Btn1Y0 = app.sideMargin + btnX, app.topMargin + btn1Y
@@ -203,8 +260,8 @@ def resetSendPage(app):
 
     # coords of box for send button to enter amount
     text2 = '  Enter\nAmount'
-    Btn2W, Btn2H = 75, 75
-    Btn2X0, Btn2Y0 = app.sideMargin + btnX, Btn1Y0 + Btn1H + 30
+    Btn2W, Btn2H = 75, 50
+    Btn2X0, Btn2Y0 = app.sideMargin + btnX, Btn1Y0 + Btn1H + 40
     app.sendButton2 = (Btn2X0, Btn2Y0, Btn2X0 + Btn2W, Btn2Y0 + Btn2H, text2)
     app.sendButton2Color = 'white'
     # amount field
@@ -212,7 +269,7 @@ def resetSendPage(app):
 
     # coords of box to confirm the send transaction
     text3 = 'Confirm Transaction'
-    Btn3W, Btn3H = 200, 75
+    Btn3W, Btn3H = 200, 45
     Btn3X0, Btn3Y0 = app.width/2-Btn3W/2, app.height-200
     app.sendButton3 = (Btn3X0, Btn3Y0, Btn3X0 + Btn3W, Btn3Y0 + Btn3H, text3)
     app.sendButton3Color = 'white'
@@ -232,66 +289,13 @@ def timerFired(app):
     app.count += 1
     app.chain.updateStakes()
     randomStakes(app)
+    genUser(app)
     if app.count % Params.MINT_TIME == 0: # when we reach mint time
         app.count = 0
         mintBlock(app)
-    if app.generating:
+    if (app.generating) and (not app.minting):
         generateTxs(app)
     app.currReward = Block.totalReward(app.txsPool)
-
-def mintBlock(app):
-    minter = app.chain.lottery()
-    msg = f'''Minter chosen!
----------------------------------------------------------------------------------------------------------
-Address: {minter}
----------------------------------------------------------------------------------------------------------
-Minter will now process {len(app.txsPool)} transctions...'''
-    print(msg)
-    app.chain.mint(app.txsPool, minter)
-    print('')
-    app.txsPool = [] # reset pool to empty 
-    app.currTxsPool = [] 
-    resetMintPage(app)
-    updateUserTxs(app, app.chain.blocks[-1]) # updates app.humanUserTxs dict with txs in this block involving human users
-    moveBlockIndex(app, 0) # refresh our current blocks to update with newly created
-
-# choose some random users to stake, make sure they aren't already staked
-def randomStakes(app):
-    numStake = 60//Params.STAKE_DURATION
-    amt = random.randint(1,20)
-    n = 0
-    while n < numStake:
-        accounts = list(app.chain.accounts.keys())
-        userAddress = random.choice(accounts)
-        if (userAddress in app.chain.validators) or (userAddress == app.userAddress):
-            pass
-        else:
-            app.chain.addStake(userAddress, amt)
-            n += 1
-
-# adds any txs involving a human user to the corresponding value list in app.humanUserTxs
-def updateUserTxs(app, block):
-    for tx in block.txs:
-        # check each humanUser
-        for address in app.humanUserTxs:
-            if (tx.senderKey == address) or (tx.receiver == address):
-                app.humanUserTxs[address] = app.humanUserTxs[address] + [tx]
-    currUserTxs = app.humanUserTxs[app.userAddress]
-    maxRecentViewable = min(app.txWidth, len(currUserTxs))
-    app.currRecentTxs = currUserTxs[0:maxRecentViewable] # currently viewable transactions
-
-# initially randomly chooses a quarter of compusers to stake, simulating an active crypto eco-system
-def setValidators(app):
-    amt = 5
-    for user in app.chain.accounts:
-        # don't add if its our user
-        if user == app.userAddress:
-            continue
-
-        # only stake around 10 of our users
-        pValue = 10/len(app.chain.accounts)
-        if random.random() < pValue:
-            app.chain.addStake(user, amt)
 
 def pageHandler(app, event):
     if event.key == "Right":
@@ -362,5 +366,96 @@ def redrawAll(app, canvas):
     elif app.page == 5:
         drawView(app, canvas)
 
-# makeInitialTable()
+
+################################################################################
+#                       Minting & Validation Functions
+################################################################################
+
+def mintBlock(app):
+    app.minting = True
+    minter = app.chain.lottery()
+    msg = f'''Minter chosen!
+---------------------------------------------------------------------------------------------------------
+Address: {minter}
+---------------------------------------------------------------------------------------------------------
+Minter will now process {len(app.txsPool)} transctions...'''
+    print(msg)
+
+    # decide whether this is a 'cheating' minter
+    if random.random() < Params.CHEAT_CHANCE:
+        newBlock = app.chain.cheatMint(app.txsPool, minter)
+    else:
+        newBlock = app.chain.mint(app.txsPool, minter)
+
+
+    # case when minter cheated by validating bad txs or altering the list 
+    if (confirmTxs(app.txsPool, newBlock.txs, app.chain) == False):
+        print('Minter Cheated! Their block was rejected and the current Transaction Pool is preserved...')
+
+    # make sure our previous hash is correct    
+    elif (newBlock.prevHash != app.chain.blocks[-1].hash):
+        print('Previous Hash incorrect! This block was rejected and the current Transaction Pool is preserved...')
+
+    else: # minter did not cheat, so we can accept this block
+        validTxs = newBlock.txs
+        good, bad = len(validTxs) - 1, len(app.txsPool) - (len(validTxs)-1) # don't count coinbase reward
+        successTxt = "Mint Successful, added Block with %d accepted and %d rejected Transactions"%(good, bad)
+        print(successTxt)
+        app.txsPool = [] # reset pool to empty 
+        app.currTxsPool = [] 
+        resetMintPage(app)
+        updateUserTxs(app, app.chain.blocks[-1]) # updates app.humanUserTxs dict with txs in this block involving human users
+        moveBlockIndex(app, 0) # refresh our current blocks to update with newly created
+    app.minting = False
+
+# checks the validity of a blocks transactions versus the known ones in the app.txsPool
+def confirmTxs(txsPool, blockTxs, chain):
+    # check the coinbase tx seperately
+    coinbaseTx, blockTxs = blockTxs[0], blockTxs[1:]
+
+    # compute the valid txs from current pool, and determine whether the
+    # block's non coinbase txs are the same by using the hash based verification merkle() method
+    validPoolTxs = Block.validTxs(txsPool, chain)
+    validPoolTxsHashes = Block.hashList(validPoolTxs)
+    validPoolTxsMerkle = Block.merkle(validPoolTxsHashes)
+    newBlockTxsMerkle = Block.merkle(Block.hashList(blockTxs))
+
+    if newBlockTxsMerkle != validPoolTxsMerkle:
+        print("Minter's Txs list was tampered with!")
+        return False
+    
+    # get reward for valid txsPool transactions
+    poolTxsReward = Block.totalReward(validPoolTxs)
+    if poolTxsReward != coinbaseTx.amt:
+        print("Minter's coinbase reward is incorrect!")
+        return False
+    return True
+
+################################################################################
+#                           Human User Functions
+################################################################################
+
+# adds any txs involving a human user to the corresponding value list in app.humanUserTxs
+def updateUserTxs(app, block):
+    for tx in block.txs:
+        # check each humanUser
+        for address in app.humanUserTxs:
+            if (tx.senderKey == address) or (tx.receiver == address):
+                app.humanUserTxs[address] = app.humanUserTxs[address] + [tx]
+    currUserTxs = app.humanUserTxs[app.userAddress]
+    maxRecentViewable = min(app.txWidth, len(currUserTxs))
+    app.currRecentTxs = currUserTxs[0:maxRecentViewable] # currently viewable transactions
+
+
+# returns list of txs from the chain that involve given user
+def myTxs(app, user):
+    address = user.rawPubk
+    txs = []
+    for block in app.chain.blocks:
+        for tx in block.txs:
+            if tx.senderKey == address or tx.receiver == address:
+                txs.append(tx)
+    return txs
+
+
 runApp(width=700, height=500)
