@@ -17,7 +17,6 @@ from draw import * # page drawers
        4: Recent
        5: View BlockChain'''
 
-
 ################################################################################
 #                           App Initialization
 ################################################################################
@@ -142,15 +141,13 @@ def generateTxs(app):
 # initially randomly chooses a quarter of compusers to stake, simulating an active crypto eco-system
 def setValidators(app):
     amt = round(random.uniform(0.5, 8), 2)
-    for user in app.chain.accounts:
-        # don't add if its our user
-        if user == app.userAddress:
-            continue
+    for user in app.compUsers:
 
         # only stake a number of users according to the target ratio
         pValue = (1 / Params.VRATIO)
         if random.random() < pValue:
-            app.chain.addStake(user, amt)
+            address = user.rawPubk
+            app.chain.addStake(address, amt)
 
 # choose some random users to stake, make sure they aren't already staked
 def randomStakes(app):
@@ -227,7 +224,6 @@ def appStarted(app):
     # populate(app, 1000)
 
 def resetViewPage(app):
-    app.index = 0
     app.viewingBlockTxs = False
     app.blockTxsIndex = 0 # index of which block in the 3 app.currBlocks is currently selected to show its transactions 
     currBlockTxs = app.currBlocks[app.blockTxsIndex].txs # currently viewable transactions
@@ -235,13 +231,11 @@ def resetViewPage(app):
     app.currBlockTxs = currBlockTxs[:maxViewable]
 
 def resetRecentPage(app):
-    app.index = 0
     currUserTxs = app.humanUserTxs[app.userAddress]
     maxRecentViewable = min(app.txWidth, len(currUserTxs))
     app.currRecentTxs = currUserTxs[0:maxRecentViewable] # currently viewable transactions
 
 def resetMintPage(app):
-    app.index = 0
     maxPoolViewable = min(app.txsPoolWidth, len(app.txsPool))
     app.currPoolTxs = app.txsPool[0:maxPoolViewable]
     app.currReward = Block.totalReward(app.txsPool)
@@ -280,6 +274,8 @@ def loadImages(app):
     app.coinImg = app.scaleImage(app.coinImg, 1/5)
     app.emptyImg = app.loadImage('media/empty.png')
     app.emptyImg = app.scaleImage(app.emptyImg, 7/9)
+    app.chainImg = app.loadImage('media/chain.png')
+    app.chainImg = app.scaleImage(app.chainImg, 3/10)
 
 def loadColors(app):
     app.dGold = '#c3ad34'
@@ -299,11 +295,13 @@ def timerFired(app):
 
 def pageHandler(app, event):
     if event.key == "Right":
+        app.index = 0
         app.page += 1
         if app.page > 5:
             app.page = 0
         return True
     if event.key == "Left":
+        app.index = 0
         app.page -= 1
         if app.page < 0:
             app.page = 5
@@ -352,7 +350,6 @@ def mouseMoved(app, event):
         sendMouseHandler(app, event)
 
 def redrawAll(app, canvas):
-    drawNavbar(app, canvas)
     if app.page == 0:
         drawTutorial(app, canvas)
     elif app.page == 1:
@@ -365,6 +362,7 @@ def redrawAll(app, canvas):
         drawRecent(app, canvas)
     elif app.page == 5:
         drawView(app, canvas)
+    drawNavbar(app, canvas)
 
 
 ################################################################################
@@ -381,8 +379,8 @@ Address: {minter}
 Minter will now process {len(app.txsPool)} transctions...'''
     print(msg)
 
-    # decide whether this is a 'cheating' minter
-    if random.random() < Params.CHEAT_CHANCE:
+    # decide whether this is a 'cheating' minter but don't make human user cheat
+    if (random.random() < Params.CHEAT_CHANCE) and (minter != app.userAddress):
         newBlock = app.chain.cheatMint(app.txsPool, minter)
     else:
         newBlock = app.chain.mint(app.txsPool, minter)
@@ -390,13 +388,17 @@ Minter will now process {len(app.txsPool)} transctions...'''
 
     # case when minter cheated by validating bad txs or altering the list 
     if (confirmTxs(app.txsPool, newBlock.txs, app.chain) == False):
-        print('Minter Cheated! Their block was rejected and the current Transaction Pool is preserved...')
+        print('Minter Cheated! Their block was rejected, their stake was revoked, and the current Transaction Pool is preserved...')
+
+        # remove minter's stake as a punishment
+        app.chain.validators.pop(minter)
 
     # make sure our previous hash is correct    
     elif (newBlock.prevHash != app.chain.blocks[-1].hash):
         print('Previous Hash incorrect! This block was rejected and the current Transaction Pool is preserved...')
 
     else: # minter did not cheat, so we can accept this block
+        app.chain.addBlock(newBlock)
         validTxs = newBlock.txs
         good, bad = len(validTxs) - 1, len(app.txsPool) - (len(validTxs)-1) # don't count coinbase reward
         successTxt = "Mint Successful, added Block with %d accepted and %d rejected Transactions"%(good, bad)

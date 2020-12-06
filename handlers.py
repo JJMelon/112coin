@@ -1,4 +1,5 @@
-import math
+import math, time
+from blockchain import Params
 
 def tutorialKeyHandler(app, event):
     pass
@@ -21,6 +22,8 @@ def mintKeyHandler(app, event):
         moveIndex(app, -1)
     elif event.key == "s":
         moveIndex(app, -app.index)
+    elif event.key == 'e':
+        moveIndex(app, 1000) # move an amount greater than any txs list will be
 
 def recentKeyHandler(app, event):
     if event.key == 'Down':
@@ -47,13 +50,14 @@ def moveIndex(app, Dir):
         txsCount = len(currBlockTxs)
         maxViewable = min(app.txWidth, txsCount)
         txWidth = app.txWidth
-    app.index += Dir
-    if txWidth > maxViewable:
+    
+    # only move if not all transactions are viewable
+    if not (txWidth > maxViewable):
         app.index += Dir
-    if app.index < 0:
-        app.index = 0
-    elif app.index > txsCount - txWidth:
-        app.index = txsCount - txWidth
+        if app.index < 0:
+            app.index = 0
+        elif app.index > txsCount - txWidth:
+            app.index = txsCount - txWidth
 
     # refresh our stored current txs, we can call moveIndex(app, 0) to do this function without moving index
     if app.page == 3:
@@ -64,9 +68,13 @@ def moveIndex(app, Dir):
         app.currBlockTxs = currBlockTxs[app.index: app.index + app.txWidth]
 
 # TODO fix list index out of range bug when < 3 blocks exist in chain 
-def viewKeyHandler(app, event): 
-    if event.key == '0':
-        app.viewingBlockTxs = False
+def viewKeyHandler(app, event):
+    if app.viewingBlockTxs:
+        viewBlockTxsKeyHandler(app, event)
+    elif event.key == 's':
+        moveBlockIndex(app, -len(app.chain.blocks))
+    elif event.key == 'e':
+        moveBlockIndex(app, len(app.chain.blocks))
     elif event.key == '1':
         app.viewingBlockTxs = True
         app.blockTxsIndex = 0
@@ -83,16 +91,18 @@ def viewKeyHandler(app, event):
         app.viewingBlockTxs = True
         app.blockTxsIndex = 2
         moveIndex(app, 0)
-    if app.viewingBlockTxs:
-        viewBlockTxsKeyHandler(app, event)
 
 def viewBlockTxsKeyHandler(app, event):
-    if event.key == 'Down':
+    if event.key == '0':
+        app.viewingBlockTxs = False
+    elif event.key == 'Down':
         moveIndex(app, 1)
     elif event.key == 'Up':
         moveIndex(app, -1)
     elif event.key == "s":
         moveIndex(app, -app.index)
+    elif event.key == 'e':
+        moveIndex(app, 1000) # move an amount greater than any txs list will be
 
 def moveBlockIndex(app, Dir):
     blockCount = len(app.chain.blocks)
@@ -112,6 +122,7 @@ def navBarClickHandler(app, event):
     boxWidth = app.width/len(app.pages)
     pageClicked = math.floor(event.x/boxWidth)
     app.page = pageClicked
+    app.index = 0
 
 def tutorialClickHandler(app, event):
     pass
@@ -135,8 +146,9 @@ def sendClickHandler(app, event):
         receiver = app.recAddress
         try:
             amt = round(float(app.sendAmount), 2)
-            app.txsPool.append(app.currUser.send(receiver, amt))
-            app.showMessage('Send Message', 'Transaction Sent to Pool!')
+            sendTx = app.currUser.send(receiver, amt)
+            app.txsPool.append(sendTx)
+            app.showMessage('Send Message', f'Transaction Sent to Pool!')
             
             # refresh our mint page if we are on it
             app.index = 0
@@ -171,10 +183,13 @@ def txTableClickHandler(app, event):
         # select correct currTxs List
         if app.page == 3:
             txs = app.currPoolTxs
+            status = 'Pending Confirmation'
         if app.page == 4:
             txs = app.currRecentTxs
+            status = 'Confirmed to Block'
         elif app.page == 5:
             txs = app.currBlockTxs
+            status = 'Confirmed to Block'
         
         # ignore case when box # is more than len(txs)
         if box >= len(txs):
@@ -183,7 +198,12 @@ def txTableClickHandler(app, event):
         # check if it's already selected, if so then load popup
         if app.currTxBox == box:
             tx = txs[box]
-            msg = f'{tx.senderKey[0:15]}... to {tx.receiver[0:15]}...\n{box}\nyay'
+            formatDate = time.asctime(time.localtime(tx.date))
+            if tx.senderKey == 'coinbase':
+                msg = f'''Status: {status}\nDate: {formatDate}\nSource: Minted\nTo: {tx.receiver}\nCredit: {tx.amt}\nID: {tx.hash}'''
+            else:
+                msg = f'''Status: {status}\nDate: {formatDate}\nSender: {tx.senderKey}\nTo: {tx.receiver}\nAmount: {tx.amt}\nFee: {Params.TX_FEE}
+Net Amount: {tx.amt + Params.TX_FEE}\nID: {tx.hash}'''
             app.showMessage('Transaction', msg)
         app.currTxBox = box
     else:

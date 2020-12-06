@@ -22,7 +22,7 @@ class Params(object):
     MAXUSERS = 100 # maximimum number of compusers
     VRATIO = 5 # target ratio of total accounts to validators in our simulation
     MIN_TXS = 0 # per timerFired
-    MAX_TXS = 20 # per timerFired
+    MAX_TXS = 3 # per timerFired
     MAX_AMT = 100 # max tx amount one can send
     MIN_AMT = 0.01 # minimum denomination, (1 kos)
     A, B = 2, 0.3 # alpha and beta values for our gamma distribution of tx amts 
@@ -248,7 +248,7 @@ class Block(object):
         newHashes = []
         #base case if no transactions are given, return hash of empty string
         if L == []:
-            return sha256('').hexdigest()
+            return sha256(b'').hexdigest()
 
         # base case when length list is 1, we have our root
         elif len(L) == 1:
@@ -390,7 +390,7 @@ class BlockChain(object):
         for tx in block.txs:
             if tx.receiver != 'coinbase':
                 self.accounts[tx.receiver] = round(self.accounts.get(tx.receiver, 0) + tx.amt, 2)
-            elif tx.senderKey != 'coinbase':
+            if tx.senderKey != 'coinbase':
                 self.accounts[tx.senderKey] = round(self.accounts.get(tx.senderKey, 0) - (tx.amt + Params.TX_FEE), 2)
 
     # stake an amount of coins at the time of the function call

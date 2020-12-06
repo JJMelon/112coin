@@ -86,7 +86,7 @@ def drawSend(app, canvas):
     canvas.create_rectangle(B1X0, B1Y0, B1X1, B1Y1, width=2, fill=color1, outline='gold')
     canvas.create_text((B1X0+B1X1)/2,(B1Y0+B1Y1)/2, text=text1, font='Arial 12 bold', fill=app.dGold)
     # receiver userAddress field
-    boxHeight, boxWidth = 25, 400
+    boxHeight, boxWidth = 25, (app.width-app.sideMargin - B1X0)
     boxX0, boxY0 = B1X0, B1Y0 - boxHeight - boxPad
     boxX1, boxY1 = boxX0 + boxWidth, boxY0 + boxHeight
     canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width='2')
@@ -107,7 +107,7 @@ def drawSend(app, canvas):
     canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width='2')
     canvas.create_text(boxX0 + boxPad, (boxY0 + boxY1)/2, text=f'Amount:', 
         font='Arial 14 bold', anchor='w')
-    canvas.create_text(boxX0 + boxWidth-70, (boxY0 + boxY1)/2, text=app.sendAmount, 
+    canvas.create_text(boxX0 + boxWidth-65, (boxY0 + boxY1)/2, text=app.sendAmount, 
         font='Arial 12', anchor='w')
 
     # button to confirm send transaction
@@ -124,7 +124,6 @@ def drawSend(app, canvas):
     canvas.create_text(app.width/2, app.height-50, text='Try copying an address from the view pages!',
             font='Arial 10', fill='darkGreen')
 
-# TODO show current block reward by summing tx fees for all txs in app.txsPool
 def drawMint(app, canvas):
     topPad = 20
     canvas.create_text(app.sideMargin, app.topMargin + 3*topPad/2, 
@@ -176,13 +175,12 @@ def drawMyTxColumns(app, canvas):
     canvas.create_text((labelEnd+amtEnd)/2, app.topMargin + topPad/2, text='Amount', font="Arial 14 bold")
 
     colsX = app.sideMargin, dateEnd, typeEnd, labelEnd
-    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
+    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start, e to go to end.")
     # tip
-    canvas.create_text(app.width-topPad/2, app.height-app.topMargin/2, text='Double Click a transaction to see more!',
-            font='Arial 10', fill='darkGreen', anchor='e')
+    canvas.create_text(app.width/2, app.height-app.topMargin/4, text='Double Click a transaction to see more!', fill='darkGreen',)
     return colsX
 
-def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
+def drawMyTx(app, canvas, tx, x0, y0, colsX, color, num):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth 
     txBoxWidth = app.width - 2*app.sideMargin
     canvas.create_rectangle(x0, y0, x0 + txBoxWidth, y0 + txBoxHeight, width=2, fill=color)
@@ -219,6 +217,9 @@ def drawMyTx(app, canvas, tx, x0, y0, colsX, color):
     canvas.create_text(amtX+pad, txtCy, text=(f'{amt} (112C)'), 
             font='Arial 8 bold', anchor='w')
 
+    # number of transaction in list column
+    canvas.create_text(app.sideMargin - 10, txtCy, text=f'{app.index + num}')
+
 
 def drawView(app, canvas):
     # when user presses one of three keys (1,2,3) the transactions for that block are shown in a new draw page
@@ -226,17 +227,22 @@ def drawView(app, canvas):
         colsX = drawTxColumns(app, canvas, app.topMargin)
         drawTxs(app, canvas, colsX, app.currBlockTxs, app.topMargin + app.topPad)
     else:
+        canvas.create_image(app.width/2, app.topMargin + app.height/10.5, image=ImageTk.PhotoImage(app.chainImg))
         drawBlocks(app, canvas)
+        canvas.create_text(app.sideMargin, app.height-50, text='<== Click this side to move\nPress s to go to start', anchor='w')
+        canvas.create_text(app.width-app.sideMargin, app.height-50, text='Click this side to move ==>\nPress e to go to end', anchor='e')
+        canvas.create_text(app.width/2, app.height-50, text='Block Viewer', font='Arial 22 bold')
+        canvas.create_text(app.width/2, app.height-25, text="Press Number Keys 1-3 to see a block's transactions. Press 0 to return.")
 
 def drawBlocks(app, canvas):
     i = 1
     for block in app.currBlocks:
         if i > 3:
             break
-        drawBlock(app, canvas, block, i*app.sideMargin + (i-1)*app.blockDrawSize)
+        drawBlock(app, canvas, block, i*app.sideMargin + (i-1)*app.blockDrawSize, i)
         i += 1
 
-def drawBlock(app, canvas, block, x0):
+def drawBlock(app, canvas, block, x0, num):
     yPad = app.height/5
     blockBoxHeight = app.height - (app.topMargin + 2*yPad)
     x1 = x0+app.blockDrawSize
@@ -263,7 +269,12 @@ def drawBlock(app, canvas, block, x0):
     canvas.create_text(x0 + hashX, hashY, text="This Block's Hash: ", anchor='nw', font='Arial 10 bold')
     canvas.create_text(x0 + hashX, hashY + 15, text=hashText, anchor='nw', font='Arial 8')
     yStart, yEnd = y0 + minterY + 15, y1 - 85
+
+    # brief transactions list appearing in each block rectangle
     drawBriefTxs(app, canvas, block.txs[0:3], x0, yStart, x1, yEnd)
+
+    # number below each block
+    canvas.create_text((x0 + x1)/2, y1 + 15, text=num, font='Arial 18 bold')
 
 def drawBriefTxs(app, canvas, txs, x0, y0, x1, y1):
     if txs == []:
@@ -326,10 +337,9 @@ def drawTxColumns(app, canvas, startY):
     canvas.create_text((recEnd+amtEnd)/2, startY + topPad/2, text='Amt', font="Arial 14 bold")
 
     colsX = app.sideMargin, dateEnd, sendEnd, recEnd
-    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start")
+    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start, e to go to end.")
     # tip
-    canvas.create_text(app.width-topPad/2, app.height-app.topMargin/2, text='Double Click a transaction to see more!',
-            font='Arial 10', fill='darkGreen', anchor='e')
+    canvas.create_text(app.width/2, app.height-app.topMargin/4, text='Double Click a transaction to see more!', fill='darkGreen')
     return colsX
 
 # txs viewer draw function for a block's transactions
@@ -358,16 +368,20 @@ def drawTxs(app, canvas, colsX, txs, startY, myTxs=False):
         tx = txs[i]
         x0, y0 = app.sideMargin, startY + i*txBoxHeight
         if myTxs:
-            drawMyTx(app, canvas, tx, x0, y0, colsX, color)
+            drawMyTx(app, canvas, tx, x0, y0, colsX, color, i)
         else:
-            drawTx(app, canvas, tx, x0, y0, colsX, color)
+            drawTx(app, canvas, tx, x0, y0, colsX, color, i)
 
-def drawTx(app, canvas, tx, x0, y0, colsX, color):
+def drawTx(app, canvas, tx, x0, y0, colsX, color, num):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth 
     txBoxWidth = app.width - 2*app.sideMargin
     canvas.create_rectangle(x0, y0, x0 + txBoxWidth, y0 + txBoxHeight, width=2, fill=color)
     txtCy = y0 + txBoxHeight/2
     sender, receiver, amt, date = str(tx.senderKey), str(tx.receiver), str(tx.amt), tx.date
+    if sender == app.userAddress:
+        sender = 'You'
+    if receiver == app.userAddress:
+        receiver = 'You'
     date = formatTime(date)
     pad = 10
     dateX, typeX, labelX, amtX = colsX
@@ -387,3 +401,6 @@ def drawTx(app, canvas, tx, x0, y0, colsX, color):
     # amount column
     canvas.create_text(amtX, txtCy, text=(amt + ' (112C)'), 
             font='Arial 8 bold', anchor='w')
+    
+    # number of transaction in list column
+    canvas.create_text(app.sideMargin - 10, txtCy, text=f'{app.index + num}')
