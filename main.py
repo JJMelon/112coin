@@ -1,8 +1,6 @@
 # Alexander Penney 2020 
-import time, random, linecache, os, json
+import time, random, os, json, sqlite3
 from hashlib import sha256
-
-import sqlite3
 
 from cmu_112_graphics import *
 from blockchain import *  # blockchain functions
@@ -141,13 +139,16 @@ def generateTxs(app):
 # initially randomly chooses a quarter of compusers to stake, simulating an active crypto eco-system
 def setValidators(app):
     amt = round(random.uniform(0.5, 8), 2)
-    for user in app.compUsers:
-
-        # only stake a number of users according to the target ratio
-        pValue = (1 / Params.VRATIO)
-        if random.random() < pValue:
-            address = user.rawPubk
-            app.chain.addStake(address, amt)
+    pValue = (1 / Params.VRATIO)
+    # continue until we have the target amount of validators
+    while True:
+        user = random.choice(app.compUsers) 
+        address = user.rawPubk
+        app.chain.addStake(address, amt)
+        if len(app.chain.validators) > (Params.USERCOUNT/Params.VRATIO):
+            break
+    
+    topStaker(app) # update stake statistics
 
 # choose some random users to stake, make sure they aren't already staked
 def randomStakes(app):
@@ -179,8 +180,9 @@ def appStarted(app):
     app.page = 0
     app.pages = ['Tutorial', 'Overview', 'Send', 'Mint', 'Recent', 'View Chain']
     app.timerDelay = 1000
-    app.generating = True # start generating transactions
-    app.count = 0 # internal timer for validator simulation
+    app.generating = False # start waiting for user to toggle generating transactions
+    app.runningAI = False # wait to start simulation timer
+    app.count = 1 # internal timer for validator minting simulation
     loadImages(app)
     loadColors(app)
     # list of pending transactions in memory
@@ -189,7 +191,7 @@ def appStarted(app):
 
     # load Human User, Computer User, and Block Data
     loadDatabaseData(app)
-
+    
     # TEST set our initial validators as a random selection of comp users
     setValidators(app)
 
@@ -220,8 +222,27 @@ def appStarted(app):
     # initialize mint page details
     app.txsPoolWidth = 8
     resetMintPage(app)
+
+    resetTutorialPage(app)
     # initIndex(app)
     # populate(app, 1000)
+
+def resetTutorialPage(app):
+    # coords of box for proof of stake info button
+    Btn1W, Btn1H = 120, 50
+    btn1Y = 220
+    btnX = (app.width/2 - Btn1W/2)
+    Btn1X0, Btn1Y0 = btnX, app.topMargin + btn1Y
+    text1 = '  More about\nProof of Stake'
+    app.tutorialButton = (Btn1X0, Btn1Y0, Btn1X0 + Btn1W, Btn1Y0 + Btn1H, text1)
+    app.tutorialButtonColor = 'gold'
+
+    Btn1W, Btn1H = 200, 75
+    botPad = 25
+    Btn1X0, Btn1Y0 = app.width/2 - Btn1W/2, app.height - Btn1H - botPad
+    text2 = '  Start the\nSimulation'
+    app.startButton = (Btn1X0, Btn1Y0, Btn1X0 + Btn1W, Btn1Y0 + Btn1H, text2)
+    app.startButtonColor = 'gold'
 
 def resetViewPage(app):
     app.viewingBlockTxs = False
@@ -248,7 +269,7 @@ def resetSendPage(app):
     Btn1X0, Btn1Y0 = app.sideMargin + btnX, app.topMargin + btn1Y
     text1 = '  Enter\nAddress'
     app.sendButton1 = (Btn1X0, Btn1Y0, Btn1X0 + Btn1W, Btn1Y0 + Btn1H, text1)
-    app.sendButton1Color = 'white'
+    app.sendButton1Color = 'gold'
     # receiver user address field
     app.recAddress = ''
 
@@ -257,16 +278,16 @@ def resetSendPage(app):
     Btn2W, Btn2H = 75, 50
     Btn2X0, Btn2Y0 = app.sideMargin + btnX, Btn1Y0 + Btn1H + 40
     app.sendButton2 = (Btn2X0, Btn2Y0, Btn2X0 + Btn2W, Btn2Y0 + Btn2H, text2)
-    app.sendButton2Color = 'white'
+    app.sendButton2Color = 'gold'
     # amount field
-    app.sendAmount = ''
+    app.sendAmount = '...'
 
     # coords of box to confirm the send transaction
     text3 = 'Confirm Transaction'
     Btn3W, Btn3H = 200, 45
-    Btn3X0, Btn3Y0 = app.width/2-Btn3W/2, app.height-200
+    Btn3X0, Btn3Y0 = app.width/2-Btn3W/2, app.height-160
     app.sendButton3 = (Btn3X0, Btn3Y0, Btn3X0 + Btn3W, Btn3Y0 + Btn3H, text3)
-    app.sendButton3Color = 'white'
+    app.sendButton3Color = 'gold'
 
 
 def loadImages(app):
@@ -276,16 +297,24 @@ def loadImages(app):
     app.emptyImg = app.scaleImage(app.emptyImg, 7/9)
     app.chainImg = app.loadImage('media/chain.png')
     app.chainImg = app.scaleImage(app.chainImg, 3/10)
+    app.sendImg = app.loadImage('media/send.png')
+    app.sendImg = app.scaleImage(app.sendImg, 1)
 
 def loadColors(app):
     app.dGold = '#c3ad34'
     app.grey='#7e7e7e'
+    app.lGrey = '#f0f0f0'
+    app.lGold = '#FFC300'
+    app.lGreen = '#7DAA6A'
+    app.mGreen = '#438029'
 
 def timerFired(app):
-    app.count += 1
-    app.chain.updateStakes()
-    randomStakes(app)
-    genUser(app)
+    if app.runningAI:
+        topStaker(app)
+        app.count += 1
+        app.chain.updateStakes()
+        randomStakes(app)
+        genUser(app)
     if app.count % Params.MINT_TIME == 0: # when we reach mint time
         app.count = 0
         mintBlock(app)
@@ -294,6 +323,10 @@ def timerFired(app):
     app.currReward = Block.totalReward(app.txsPool)
 
 def pageHandler(app, event):
+    # don't let user interact until the simulation has begun
+    if (not app.runningAI):
+        app.showMessage('Error', 'Please start the simulation first!')
+        return True
     if event.key == "Right":
         app.index = 0
         app.page += 1
@@ -308,15 +341,18 @@ def pageHandler(app, event):
         return True
 
 def keyPressed(app, event):
+    if pageHandler(app, event):
+        return
+
     # TEST DEBUG
-    if event.key == 'g':
+    elif event.key == 'g':
         app.generating = not app.generating
-    if event.key == 'm':
+        if app.generating: print('Generating toggled ON')
+        else: print('Stopped Generating')
+    elif event.key == 'm':
         mintBlock(app)
 
     # END TEST DEBUG
-    if pageHandler(app, event):
-        return
     elif app.page == 0:
         tutorialKeyHandler(app, event)
     elif app.page == 1:
@@ -346,7 +382,9 @@ def mousePressed(app, event):
         viewClickHandler(app, event)
 
 def mouseMoved(app, event):
-    if app.page == 2:
+    if app.page == 0:
+        tutorialMouseHandler(app, event)
+    elif app.page == 2:
         sendMouseHandler(app, event)
 
 def redrawAll(app, canvas):
@@ -368,6 +406,12 @@ def redrawAll(app, canvas):
 ################################################################################
 #                       Minting & Validation Functions
 ################################################################################
+
+# sets the app.topStaker 
+def topStaker(app):
+    stakes = app.chain.validators
+    app.topStaker = max(stakes, key = lambda k: stakes[k][0])
+    app.topStake = round(stakes[app.topStaker][0], 2)
 
 def mintBlock(app):
     app.minting = True
@@ -460,4 +504,5 @@ def myTxs(app, user):
     return txs
 
 
-runApp(width=700, height=500)
+if __name__ == '__main__':
+    runApp(width=725, height=600)

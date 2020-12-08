@@ -22,8 +22,50 @@ def drawNavbar(app, canvas):
         canvas.create_text(mid, boxHeight/2, text=name, font='Arial 10 bold')
         
 def drawTutorial(app, canvas):
-    # canvas.create_text()
-    pass
+    topPad = 20
+    font = 'Arial 10'
+    Y0 = app.topMargin + topPad
+    canvas.create_text(app.width/2, Y0, text='112Coin Tutorial',
+        font='Arial 24 bold')
+    Y1 = Y0 + 40
+    intro = """This application simulates a Proof of Stake based Cryptocurrency with over 50 other AI users.
+But what is a Cryptocurrency?"""
+    canvas.create_text(app.sideMargin, Y1, text=intro, anchor='nw', font=font)
+    Y2 = Y1 + 60
+    crypto = """Cryptocurrency is an internet-based medium of exchange which uses cryptographical functions to conduct financial 
+transactions. Cryptocurrencies leverage blockchain technology to gain decentralization, transparency, and 
+immutability. The most important feature of a cryptocurrency is that it is not controlled by any central authority: 
+the decentralized nature of the blockchain makes cryptocurrencies theoretically immune to the old ways of government 
+control and interference. Cryptocurrencies can be sent directly between two parties via the use of private and public 
+keys. These transfers can be done with minimal processing fees, allowing users to avoid the steep fees charged by 
+traditional financial institutions."""
+    canvas.create_text(app.sideMargin, Y2, text=crypto, anchor='nw', font=font)
+
+    blockchain = """Blockchain is a specific type of database that differs from others in the way it stores information; 
+blockchains store data in blocks that are then chained together. As new data comes in it is incoporated into a new block. 
+Once the block is filled with data it is 'chained' to the previous block by using such blocks hash, a unique identifer. 
+Different types of information can be stored on a blockchain but in this application it has been ued as a ledger for 
+transactions. Many blockchains are decentralized, meaning they are stored by many individuals, making them immutable.""" 
+    Y3 = Y2 + 160
+    canvas.create_text(app.sideMargin, Y3, text=blockchain, anchor='nw', font=font)
+
+    # learn more proof of stake button
+    x0, y0, x1, y1, text1 = app.tutorialButton
+    color1 = app.tutorialButtonColor
+    canvas.create_rectangle(x0, y0, x1, y1, fill=color1, outline='gold', width=3)
+    canvas.create_text((x0+x1)/2, (y0+y1)/2, text=text1, fill='white', font='Arial 12 bold')
+
+    Y4 = Y3 + 100
+    this = """In this application, you start with 10 112Coin and can send coin to other AI users, earn coin from minting new
+blocks, and stake coin to increase your chance of winning the minting lottery and receiving the mint reward. You can also view 
+all minted blocks and their transactions as well as the currending pending transactions and those involving you."""
+    canvas.create_text(app.sideMargin, Y4, text=this, anchor='nw', font=font)
+
+    # start the simulation button
+    x0, y0, x1, y1, text2 = app.startButton
+    color2 = app.startButtonColor
+    canvas.create_rectangle(x0, y0, x1, y1, fill=color2, outline='gold', width=3)
+    canvas.create_text((x0+x1)/2, (y0+y1)/2, text=text2, fill='white', font='Arial 20 bold')
 
 def drawOverview(app, canvas):
     leftMargin = 20
@@ -36,31 +78,49 @@ def drawOverview(app, canvas):
                                             font='Arial 8', anchor='nw')
     canvas.create_text(leftMargin, app.topMargin + 4*topPad, text=f'Private Key: {app.currUser.rawPrivk}', 
                                             font='Arial 8', anchor='nw')
-    
+
+
+    # User's stake information
     canvas.create_text(app.width/2, app.topMargin + 6*topPad, text='Your Stake',
              font='Arial 18 bold')
     imgSize = app.coinImg.size[0]
     canvas.create_image(boxX0-imgSize, (boxY0 + boxY1)/2, image=ImageTk.PhotoImage(app.coinImg))
     canvas.create_image(boxX1+imgSize, (boxY0 + boxY1)/2, image=ImageTk.PhotoImage(app.coinImg))
-    canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width=2)
+    
+    
+    # stake info box 
     amt, startTime = app.chain.validators.get(app.userAddress, (None, None))
-
     
     # if we are a validator and have an active stake
     if startTime != None:
         timeLeft = (startTime + app.stakeDuration) - time.time()
         Text = 'Amt: %0.2f | Time Left: %ds' % (amt, timeLeft)
         color = 'darkGreen'
+        fill = app.lGreen
     else:
         Text = 'No Active Stake!'
         amt = 0
         color='red'
+        fill = 'red'
 
+    canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width=2, fill=fill)
     canvas.create_text((boxX1+boxX0)/2, (boxY1+boxY0)/2, text=Text,
-            font='Arial 12 bold')
+            font='Arial 12 bold', fill='white')
 
     canvas.create_text(app.width/2, boxY1 + topPad, text='Press s to stake coin!',
              font='Arial 18 bold')
+
+    # total staked
+    font2 = 'Arial 16 bold'
+    canvas.create_text(app.width/2, app.height - 12*topPad, text='Validator Statistics', font='Arial 20 bold')
+    canvas.create_text(app.width/2, app.height - 10*topPad, text=f'Total Staked: {app.chain.staked} (112Coin)',
+        font=font2, fill=app.mGreen)
+
+    # top staker
+    canvas.create_text(app.width/2, app.height - 8*topPad, text=f'Top Staker Address: {app.topStaker[0:20]}...',
+        font=font2, fill=app.mGreen)
+    canvas.create_text(app.width/2, app.height - 6*topPad, text=f'Top Staker Amount: {app.topStake} (112Coin)',
+        font=font2, fill=app.mGreen)
 
     # your share of total
     gap = 25
@@ -84,7 +144,7 @@ def drawSend(app, canvas):
     B1X0, B1Y0, B1X1, B1Y1, text1 = app.sendButton1
     color1 = app.sendButton1Color
     canvas.create_rectangle(B1X0, B1Y0, B1X1, B1Y1, width=2, fill=color1, outline='gold')
-    canvas.create_text((B1X0+B1X1)/2,(B1Y0+B1Y1)/2, text=text1, font='Arial 12 bold', fill=app.dGold)
+    canvas.create_text((B1X0+B1X1)/2,(B1Y0+B1Y1)/2, text=text1, font='Arial 12 bold', fill='white')
     # receiver userAddress field
     boxHeight, boxWidth = 25, (app.width-app.sideMargin - B1X0)
     boxX0, boxY0 = B1X0, B1Y0 - boxHeight - boxPad
@@ -92,14 +152,14 @@ def drawSend(app, canvas):
     canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width='2')
     canvas.create_text(boxX0 + boxPad, (boxY0 + boxY1)/2, text=f'Receiver:', 
         font='Arial 14 bold', anchor='w')
-    canvas.create_text(boxX0 + 100, (boxY0 + boxY1)/2, text=app.recAddress, 
+    canvas.create_text(boxX0 + 100, (boxY0 + boxY1)/2, text=f'{app.recAddress[0:60]}...', 
         font='Arial 12', anchor='w')
 
     # button to enter amt to send
     color2 = app.sendButton2Color
     B2X0, B2Y0, B2X1, B2Y1, text2 = app.sendButton2
     canvas.create_rectangle(B2X0, B2Y0, B2X1, B2Y1, width=2, fill=color2, outline='gold')
-    canvas.create_text((B2X0 + B2X1)/2,(B2Y0 + B2Y1)/2, text=text2, font='Arial 12 bold', fill=app.dGold)
+    canvas.create_text((B2X0 + B2X1)/2,(B2Y0 + B2Y1)/2, text=text2, font='Arial 12 bold', fill='white')
     # tx amount field
     boxHeight, boxWidth = 25, 150
     boxX0, boxY0 = B2X0, B2Y0 - boxHeight - boxPad
@@ -109,13 +169,15 @@ def drawSend(app, canvas):
         font='Arial 14 bold', anchor='w')
     canvas.create_text(boxX0 + boxWidth-65, (boxY0 + boxY1)/2, text=app.sendAmount, 
         font='Arial 12', anchor='w')
-
+    
+    # image
+    canvas.create_image(app.width/2, app.height/2, image=ImageTk.PhotoImage(app.sendImg))
     # button to confirm send transaction
     color3 = app.sendButton3Color
     B3X0, B3Y0, B3X1, B3Y1, text3 = app.sendButton3
     canvas.create_rectangle(B3X0, B3Y0, B3X1, B3Y1, width=2, fill=color3)
     canvas.create_text((B3X0+B3X1)/2,(B3Y0+B3Y1)/2, text=text3, 
-            font='Arial 12 bold', fill=app.dGold)
+            font='Arial 12 bold', fill='white')
 
     # balance info at bottom
     canvas.create_text(app.width/2, app.height-100, text=f"Balance: {app.chain.accounts[app.userAddress]}", font='Arial 18 bold')
@@ -149,33 +211,38 @@ def drawMyTxColumns(app, canvas):
     topPad = 20
     tableWidth = app.width-2*app.sideMargin
     startY, endY = app.topMargin, app.topMargin + topPad
+    color = app.lGreen
 
     # Date Column
     dateWidth = 2*tableWidth/7
     dateEnd = app.sideMargin + dateWidth
-    canvas.create_rectangle(app.sideMargin, startY, dateEnd, endY)
-    canvas.create_text((app.sideMargin+dateWidth)/2, app.topMargin + topPad/2, text='Date', font="Arial 14 bold")
+    canvas.create_rectangle(app.sideMargin, startY, dateEnd, endY, fill=color)
+    canvas.create_text((app.sideMargin+dateWidth)/2, app.topMargin + topPad/2, text='Date', 
+        font="Arial 14 bold", fill='white')
 
     # Type Column
     typeWidth = tableWidth/7
     typeEnd = app.sideMargin + dateWidth + typeWidth
-    canvas.create_rectangle(dateEnd, startY, typeEnd, endY)
-    canvas.create_text((dateEnd+typeEnd)/2, app.topMargin + topPad/2, text='Type', font="Arial 14 bold")
+    canvas.create_rectangle(dateEnd, startY, typeEnd, endY, fill=color)
+    canvas.create_text((dateEnd+typeEnd)/2, app.topMargin + topPad/2, text='Type', 
+        font="Arial 14 bold", fill='white')
 
     # Label Column
     labelWidth = 3*tableWidth/7
     labelEnd = typeEnd + labelWidth
-    canvas.create_rectangle(typeEnd, startY, labelEnd, endY)
-    canvas.create_text((typeEnd+labelEnd)/2, app.topMargin + topPad/2, text='Label', font="Arial 14 bold")
+    canvas.create_rectangle(typeEnd, startY, labelEnd, endY, fill=color)
+    canvas.create_text((typeEnd+labelEnd)/2, app.topMargin + topPad/2, text='Label', 
+        font="Arial 14 bold", fill='white')
 
     # Amount Column
     amtWidth = tableWidth/7
     amtEnd = labelEnd + amtWidth
-    canvas.create_rectangle(labelEnd, startY, amtEnd, endY)
-    canvas.create_text((labelEnd+amtEnd)/2, app.topMargin + topPad/2, text='Amount', font="Arial 14 bold")
+    canvas.create_rectangle(labelEnd, startY, amtEnd, endY, fill=color)
+    canvas.create_text((labelEnd+amtEnd)/2, app.topMargin + topPad/2, text='Amount', 
+        font="Arial 14 bold", fill='white')
 
     colsX = app.sideMargin, dateEnd, typeEnd, labelEnd
-    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start, e to go to end.")
+    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start, e to go to end, c to copy tx sender, r to copy receiver.")
     # tip
     canvas.create_text(app.width/2, app.height-app.topMargin/4, text='Double Click a transaction to see more!', fill='darkGreen',)
     return colsX
@@ -248,7 +315,8 @@ def drawBlock(app, canvas, block, x0, num):
     x1 = x0+app.blockDrawSize
     y0 = app.topMargin + yPad
     y1 = y0 + blockBoxHeight
-    canvas.create_rectangle(x0, y0, x1, y1, width=3)
+    color = '#FFFF8F'
+    canvas.create_rectangle(x0, y0, x1, y1, width=3, fill=color)
     height = app.chain.blocks.index(block)
 
     heightY, timeY, minterY = 30, 5, 50
@@ -285,7 +353,7 @@ def drawBriefTxs(app, canvas, txs, x0, y0, x1, y1):
         yEnd = yStart + txBoxHeight
         txtCy = (yStart + yEnd)/2
 
-        canvas.create_rectangle(x0, yStart, x1, yEnd, width=2)
+        canvas.create_rectangle(x0, yStart, x1, yEnd, width=2, fill='gold')
         tx = txs[i]
         tableWidth = (x1-x0)
         
@@ -311,33 +379,38 @@ def drawTxColumns(app, canvas, startY):
     topPad = 20
     tableWidth = app.width-2*app.sideMargin
     endY = startY + topPad
+    color = app.lGreen
 
     # Date Column
     dateWidth = 2*tableWidth/11
     dateEnd = app.sideMargin + dateWidth
-    canvas.create_rectangle(app.sideMargin, startY, dateEnd, endY)
-    canvas.create_text((app.sideMargin+dateWidth)/2, startY + topPad/2, text='Date', font="Arial 14 bold")
+    canvas.create_rectangle(app.sideMargin, startY, dateEnd, endY, fill=color)
+    canvas.create_text((app.sideMargin+dateWidth)/2, startY + topPad/2, text='Date', 
+        font="Arial 14 bold", fill='white')
 
     # Sender Column
     sendWidth = 4*tableWidth/11
     sendEnd = app.sideMargin + dateWidth + sendWidth
-    canvas.create_rectangle(dateEnd, startY, sendEnd, endY)
-    canvas.create_text((dateEnd+sendEnd)/2, startY + topPad/2, text='Sender', font="Arial 14 bold")
+    canvas.create_rectangle(dateEnd, startY, sendEnd, endY, fill=color)
+    canvas.create_text((dateEnd+sendEnd)/2, startY + topPad/2, text='Sender',
+         font="Arial 14 bold", fill='white')
 
     # Receiver Column
     recWidth = 4*tableWidth/11
     recEnd = sendEnd + recWidth
-    canvas.create_rectangle(sendEnd, startY, recEnd, endY)
-    canvas.create_text((sendEnd+recEnd)/2, startY + topPad/2, text='Label', font="Arial 14 bold")
+    canvas.create_rectangle(sendEnd, startY, recEnd, endY, fill=color)
+    canvas.create_text((sendEnd+recEnd)/2, startY + topPad/2, text='Label', 
+        font="Arial 14 bold", fill='white')
 
     # Amount Column
     amtWidth = tableWidth/11
     amtEnd = recEnd + amtWidth
-    canvas.create_rectangle(recEnd, startY, amtEnd, endY)
-    canvas.create_text((recEnd+amtEnd)/2, startY + topPad/2, text='Amt', font="Arial 14 bold")
+    canvas.create_rectangle(recEnd, startY, amtEnd, endY, fill=color)
+    canvas.create_text((recEnd+amtEnd)/2, startY + topPad/2, text='Amt', 
+        font="Arial 14 bold", fill='white')
 
     colsX = app.sideMargin, dateEnd, sendEnd, recEnd
-    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start, e to go to end.")
+    canvas.create_text(app.width/2, app.height-app.topMargin/2, text="Up/Down to move, s to go to start, e to go to end, c to copy tx sender, r to copy receiver.")
     # tip
     canvas.create_text(app.width/2, app.height-app.topMargin/4, text='Double Click a transaction to see more!', fill='darkGreen')
     return colsX

@@ -1,7 +1,5 @@
 # database storage
-import sqlite3, json
-
-import time, random, linecache
+import sqlite3, json, time, random
 from hashlib import sha256
 
 # ecdsa keygen and signature module
@@ -14,7 +12,6 @@ from database import *
 # userful parameters to mess with
 class Params(object):
     MINT_TIME = 13 #in sec
-    MINT_REWARD = 1 # amount of coin generated from the coinbase for minting a block when blockchain first starts
     TX_FEE = 0.01
     STAKE_DURATION = 60 # duration in sec of a stake before it is returned
     CURVE = NIST192p # ecdsa algorithm curve
@@ -306,7 +303,7 @@ class Block(object):
     # sums the fees from all of the txs 
     @staticmethod
     def totalReward(txs):
-        return round(len(txs)*Params.TX_FEE + Params.MINT_REWARD,2)
+        return round(len(txs)*Params.TX_FEE, 2)
 
 # Stores block objects, can add blocks to database, fetch certain blocks from database, and store pertinent info
 class BlockChain(object):

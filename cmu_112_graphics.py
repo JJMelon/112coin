@@ -287,6 +287,7 @@ class App(object):
     def copy2Clip(app, txt):
         app._root.clipboard_clear()
         app._root.clipboard_append(txt)
+        print(f'{txt} Copied to Keyboard!')
 
     def getUserInput(app, prompt):
         return simpledialog.askstring('getUserInput', prompt)
