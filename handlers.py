@@ -1,3 +1,5 @@
+# Mouse Pressed, Key Pressed, Mouse Moved handler functions
+
 import math, time
 from blockchain import Params
 

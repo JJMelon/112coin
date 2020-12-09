@@ -1,4 +1,6 @@
 
+# Database interaction functions
+
 import sqlite3, json
 '''
 -------------------SQL DATABASE REFERENCES---------------

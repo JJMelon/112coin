@@ -1,3 +1,5 @@
+# Draw functions file
+
 import time, math
 from cmu_112_graphics import ImageTk
 

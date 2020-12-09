@@ -1,3 +1,5 @@
+# main blockchain functionality with User, Block, BlockChain, Tx objects
+
 # database storage
 import sqlite3, json, time, random
 from hashlib import sha256
