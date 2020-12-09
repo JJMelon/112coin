@@ -10,7 +10,7 @@ transactions to other users at random intervals, simulating an active cryptocurr
 involve insufficient balances and the validating algorithm will exclude these. There will even be occasional times that minters 'cheat' the network
 by creating fake transactions, and they will we accordingly punished by losing their stake.  
 
-## Note: ## The Currency is Called 112Coin, and 0.01 112Coin = 1 kos
+## Note: The Currency is Called 112Coin, and 0.01 112Coin = 1 kos
 
 # How to run the project.
 
