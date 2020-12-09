@@ -139,30 +139,29 @@ def generateTxs(app):
 # initially randomly chooses a quarter of compusers to stake, simulating an active crypto eco-system
 def setValidators(app):
     amt = round(random.uniform(0.5, 8), 2)
-    pValue = (1 / Params.VRATIO)
-    # continue until we have the target amount of validators
+    # continue until we have half of the target amount of validators, so we slowly build up eventually
     while True:
         user = random.choice(app.compUsers) 
         address = user.rawPubk
         app.chain.addStake(address, amt)
-        if len(app.chain.validators) > (Params.USERCOUNT/Params.VRATIO):
+        if len(app.chain.validators) > (Params.USERCOUNT/(2*Params.VRATIO)):
             break
     
     topStaker(app) # update stake statistics
 
 # choose some random users to stake, make sure they aren't already staked
 def randomStakes(app):
-    numStake = random.randint(0,3)
+    numStake = random.randint(1,3)
     amt = random.uniform(1,20)
     n = 0
     while n < numStake:
-        accounts = list(app.chain.accounts)
-        userAddress = random.choice(accounts)
-        # case for when every account is a validator, we should just break and wait until some validators are removed
-        if len(app.chain.validators) >= (len(accounts)//Params.VRATIO):
+        userAddress = random.choice(app.compUsers).rawPubk
+        # case for when we reach enough validators, we should just break and wait until some validators are removed
+        if (len(app.chain.validators) > len(app.compUsers)//Params.VRATIO) and (app.chain.staked >= Params.MINSTAKED):
             break
-        elif (userAddress in app.chain.validators) or (userAddress == app.userAddress):
-            pass
+        # do not try to restake a validator, this is a waste of computing as it will just not add
+        elif (userAddress in app.chain.validators):
+            continue
         else:
             app.chain.addStake(userAddress, amt)
             n += 1
@@ -410,8 +409,12 @@ def redrawAll(app, canvas):
 # sets the app.topStaker 
 def topStaker(app):
     stakes = app.chain.validators
-    app.topStaker = max(stakes, key = lambda k: stakes[k][0])
-    app.topStake = round(stakes[app.topStaker][0], 2)
+    try:
+        app.topStaker = max(stakes, key = lambda k: stakes[k][0])
+        app.topStake = round(stakes[app.topStaker][0], 2)
+    except:
+        app.topStaker = 'None'
+        app.topStake = 0
 
 def mintBlock(app):
     app.minting = True
@@ -502,7 +505,6 @@ def myTxs(app, user):
             if tx.senderKey == address or tx.receiver == address:
                 txs.append(tx)
     return txs
-
 
 if __name__ == '__main__':
     runApp(width=725, height=600)

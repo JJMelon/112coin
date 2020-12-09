@@ -7,6 +7,10 @@ def formatTime(Time):
     struct = time.localtime(Time)
     return time.strftime("%m/%d/%y--%H:%M:%S", struct)
 
+
+################################################################################
+#                           Navigation Bar
+################################################################################
 def drawNavbar(app, canvas):
     boxWidth = (app.width)/len(app.pages)
     boxHeight = app.topMargin
@@ -20,7 +24,12 @@ def drawNavbar(app, canvas):
         mid = (x0+x1)/2
         canvas.create_rectangle(x0, y0, x1, y1, fill=color, width=1)
         canvas.create_text(mid, boxHeight/2, text=name, font='Arial 10 bold')
-        
+
+
+################################################################################
+#                                Tutorial Page
+################################################################################
+
 def drawTutorial(app, canvas):
     topPad = 20
     font = 'Arial 10'
@@ -44,7 +53,7 @@ traditional financial institutions."""
     blockchain = """Blockchain is a specific type of database that differs from others in the way it stores information; 
 blockchains store data in blocks that are then chained together. As new data comes in it is incoporated into a new block. 
 Once the block is filled with data it is 'chained' to the previous block by using such blocks hash, a unique identifer. 
-Different types of information can be stored on a blockchain but in this application it has been ued as a ledger for 
+Different types of information can be stored on a blockchain but in this application it has been used as a ledger for 
 transactions. Many blockchains are decentralized, meaning they are stored by many individuals, making them immutable.""" 
     Y3 = Y2 + 160
     canvas.create_text(app.sideMargin, Y3, text=blockchain, anchor='nw', font=font)
@@ -57,8 +66,8 @@ transactions. Many blockchains are decentralized, meaning they are stored by man
 
     Y4 = Y3 + 100
     this = """In this application, you start with 10 112Coin and can send coin to other AI users, earn coin from minting new
-blocks, and stake coin to increase your chance of winning the minting lottery and receiving the mint reward. You can also view 
-all minted blocks and their transactions as well as the currending pending transactions and those involving you."""
+blocks, and stake coin to increase your chance of winning the minting lottery and receiving the mint reward. You can also 
+view all minted blocks and their transactions as well as the current pending transactions and those involving you."""
     canvas.create_text(app.sideMargin, Y4, text=this, anchor='nw', font=font)
 
     # start the simulation button
@@ -67,6 +76,11 @@ all minted blocks and their transactions as well as the currending pending trans
     canvas.create_rectangle(x0, y0, x1, y1, fill=color2, outline='gold', width=3)
     canvas.create_text((x0+x1)/2, (y0+y1)/2, text=text2, fill='white', font='Arial 20 bold')
 
+
+################################################################################
+#                                Overview Page
+################################################################################
+
 def drawOverview(app, canvas):
     leftMargin = 20
     topPad = 20
@@ -74,10 +88,10 @@ def drawOverview(app, canvas):
     boxX0, boxY0 = app.width/2-boxWidth/2, app.topMargin + 7.5*topPad
     boxX1, boxY1 = boxX0 + boxWidth, boxY0 + boxHeight
     canvas.create_text(leftMargin, app.topMargin + topPad, text=f"Balance: {app.chain.accounts[app.userAddress]}", font='Arial 18 bold', anchor='nw')
-    canvas.create_text(leftMargin, app.topMargin + 2.5*topPad, text=f'Public Key: {app.userAddress}', 
-                                            font='Arial 8', anchor='nw')
+    canvas.create_text(leftMargin, app.topMargin + 2.5*topPad, text=f'Public Key: {app.userAddress[0:80]}...', 
+                                            font='Arial 10', anchor='nw')
     canvas.create_text(leftMargin, app.topMargin + 4*topPad, text=f'Private Key: {app.currUser.rawPrivk}', 
-                                            font='Arial 8', anchor='nw')
+                                            font='Arial 10', anchor='nw')
 
 
     # User's stake information
@@ -127,12 +141,18 @@ def drawOverview(app, canvas):
     txt1X0 = app.width/2 + 125
     canvas.create_text(txt1X0, app.height-3*topPad, text='Your Share of Staked Coin:',
             font='Arial 18 bold', anchor='e')
-    percent = round(amt/app.chain.staked*100, 2)
+    try:
+        percent = round(amt/app.chain.staked*100, 2)
+    except:
+        percent = 0
     canvas.create_text(txt1X0 + gap, app.height-3*topPad, text=f'{percent}%',
             font='Arial 18 bold', fill=color, anchor='w')
 
 
 
+################################################################################
+#                                Send Page
+################################################################################
 
 def drawSend(app, canvas):
     topPad = 10
@@ -152,7 +172,7 @@ def drawSend(app, canvas):
     canvas.create_rectangle(boxX0, boxY0, boxX1, boxY1, width='2')
     canvas.create_text(boxX0 + boxPad, (boxY0 + boxY1)/2, text=f'Receiver:', 
         font='Arial 14 bold', anchor='w')
-    canvas.create_text(boxX0 + 100, (boxY0 + boxY1)/2, text=f'{app.recAddress[0:60]}...', 
+    canvas.create_text(boxX0 + 100, (boxY0 + boxY1)/2, text=f'{str(app.recAddress)[0:60]}...', 
         font='Arial 12', anchor='w')
 
     # button to enter amt to send
@@ -186,6 +206,11 @@ def drawSend(app, canvas):
     canvas.create_text(app.width/2, app.height-50, text='Try copying an address from the view pages!',
             font='Arial 10', fill='darkGreen')
 
+
+################################################################################
+#                                Mint Page
+################################################################################
+
 def drawMint(app, canvas):
     topPad = 20
     canvas.create_text(app.sideMargin, app.topMargin + 3*topPad/2, 
@@ -202,7 +227,12 @@ def drawMint(app, canvas):
             font='Arial 24 bold', fill=app.grey)
     else:
         drawTxs(app, canvas, colsX, app.currPoolTxs, app.topMargin + app.topPad + 3*topPad)
-    
+
+
+################################################################################
+#                                Recent Page
+################################################################################
+
 def drawRecent(app, canvas):
     colsX = drawMyTxColumns(app, canvas)
     drawTxs(app, canvas, colsX, app.currRecentTxs, app.topMargin + app.topPad, myTxs=True)
@@ -287,6 +317,9 @@ def drawMyTx(app, canvas, tx, x0, y0, colsX, color, num):
     # number of transaction in list column
     canvas.create_text(app.sideMargin - 10, txtCy, text=f'{app.index + num}')
 
+################################################################################
+#                                View Chain Page
+################################################################################
 
 def drawView(app, canvas):
     # when user presses one of three keys (1,2,3) the transactions for that block are shown in a new draw page
@@ -415,7 +448,11 @@ def drawTxColumns(app, canvas, startY):
     canvas.create_text(app.width/2, app.height-app.topMargin/4, text='Double Click a transaction to see more!', fill='darkGreen')
     return colsX
 
-# txs viewer draw function for a block's transactions
+
+################################################################################
+#                 Transactions Pages (For Recent and Individual Blocks)
+################################################################################
+
 def drawTxs(app, canvas, colsX, txs, startY, myTxs=False):
     txBoxHeight = (app.height - 2*app.topMargin)//app.txWidth
     if app.index%2 == 0:

@@ -12,14 +12,15 @@ from database import *
 # userful parameters to mess with
 class Params(object):
     MINT_TIME = 13 #in sec
-    TX_FEE = 0.01
+    TX_FEE = 0.05
     STAKE_DURATION = 60 # duration in sec of a stake before it is returned
     CURVE = NIST192p # ecdsa algorithm curve
-    USERCOUNT = 50 # number of default starting compusers
-    MAXUSERS = 100 # maximimum number of compusers
+    USERCOUNT = 100 # number of default starting compusers
+    MAXUSERS = 150 # maximimum number of compusers
     VRATIO = 5 # target ratio of total accounts to validators in our simulation
-    MIN_TXS = 0 # per timerFired
-    MAX_TXS = 3 # per timerFired
+    MINSTAKED = 100 # minimum number of staked 112Coin for a healthy market
+    MIN_TXS = 3 # per timerFired
+    MAX_TXS = 8 # per timerFired
     MAX_AMT = 100 # max tx amount one can send
     MIN_AMT = 0.01 # minimum denomination, (1 kos)
     A, B = 2, 0.3 # alpha and beta values for our gamma distribution of tx amts 
@@ -238,9 +239,10 @@ class Block(object):
     def __repr__(self):
         return (f'[Block Hash: {self.hash} -- {self.time}]')
 
-    @staticmethod
+    # recursive 'merging' framework for algorithm from CMU-112 Recursive Merge sort example
     # returns the hash of the root of the merkle tree of transactions
     # takes in a list of hashes of each transaction
+    @staticmethod
     def merkle(L):
         newHashes = []
         #base case if no transactions are given, return hash of empty string
@@ -394,7 +396,7 @@ class BlockChain(object):
     def addStake(self, validator, amt):
 
         # if they do not have enough coin to stake, or already have a stake, then we do nothing
-        if (amt > self.accounts[validator]):
+        if (amt > self.accounts.get(validator, 0)):
             return "Insufficient Balance!"
         elif (validator in self.validators):
             return "Already Staked!"
@@ -494,6 +496,3 @@ def compUsers():
     for i in range(Params.USERCOUNT):
         users.append(User())
     return users
-
-
-
