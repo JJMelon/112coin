@@ -13,14 +13,17 @@ by creating fake transactions, and they will we accordingly punished by losing t
 
 # How to run the project.
 
-Simply unzip the directory and run main.py. A chain.db file will br created on the first run and 
+Simply unzip the directory and run main.py. A chain.db file will be created on the first run and 
 stores all users and block data.
 
 # Libraries that need to be installed
 
-- ecdsa  (use 'pip install ecdsa')
+- ecdsa  use:
+
+"pip install ecdsa"
 
 # A list of any shortcut commands that exist.
 
 'm' -- mint a block from the current txs pool
+
 'g' -- toggle on and off the AI transaction generation
