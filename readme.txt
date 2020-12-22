@@ -10,6 +10,7 @@ transactions to other users at random intervals, simulating an active cryptocurr
 involve insufficient balances and the validating algorithm will exclude these. There will even be occasional times that minters 'cheat' the network
 by creating fake transactions, and they will we accordingly punished by losing their stake.  
 
+Youtube Demo Link: https://youtu.be/pxKJtONQdLg 
 
 # How to run the project.
 
